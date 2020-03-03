@@ -44,30 +44,12 @@ set(NODE_SOURCES
     src/Executor.cpp
 )
 
-#adding 2 executables lines bcos of 2 mains
-add_executable(${PROJECT_NAME}_node_test_publisher src/test_Publisher.cpp)
-add_executable(${PROJECT_NAME}_node_test_subscriber src/test_Subscriber.cpp)
-#add_executable(${PROJECT_NAME}_node_test_openCV_1 src/test_openCV_1.cpp)
 add_executable(${PROJECT_NAME}_node_imageStabilization ${NODE_SOURCES})
 
 
 #1 dependency per executable - may not be reqd
-add_dependencies(${PROJECT_NAME}_node_test_publisher ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(${PROJECT_NAME}_node_test_subscriber ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-#add_dependencies(${PROJECT_NAME}_node_test_openCV_1 ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(${PROJECT_NAME}_node_imageStabilization ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-#1 TLL per executable
-target_link_libraries(${PROJECT_NAME}_node_test_publisher
-    ${catkin_LIBRARIES}
-)
-target_link_libraries(${PROJECT_NAME}_node_test_subscriber
-    ${catkin_LIBRARIES}
-)
-#target_link_libraries(${PROJECT_NAME}_node_test_openCV_1
-#    ${catkin_LIBRARIES}
-#)
-#note this
 target_link_libraries(${PROJECT_NAME}_node_imageStabilization
     ${catkin_LIBRARIES}
     ${OpenCV_LIBS}

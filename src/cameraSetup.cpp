@@ -42,7 +42,7 @@ bool cameraSetup::calculateRotationMatrix(ros::Time capture_time){//if there is 
         //parameters are target frame, source frame, time at which we want to transform(Time(0) is latest transform.), duration before timeout.
         //transformStamped - will get us the translation and rotation. I am using the rotation for warp. Not using translation currently.
         //transformStamped.transform.translation and transformStamped.transform.rotation
-        transformStamped = tfBuffer->lookupTransform("north_up_base_link" , camera_name + "_optical", capture_time);
+        transformStamped = tfBuffer->lookupTransform("north_up_base_link" , camera_name + "_optical", capture_time+ros::Duration(-.4));
         //convert msg into a quartenion - do we need to consider only the rotation part here by using transformStamped.transform.rotation? - yes.
         tf2::convert(transformStamped.transform.rotation , q_value);
         q_value = scalar * q_value;
