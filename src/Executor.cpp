@@ -9,8 +9,8 @@ using namespace std;
 using namespace cv;
 
 // Variables declaration
-const int CONST_NO_OF_PIXELS_Y_ROWS = 5000;
-const int CONST_NO_OF_PIXELS_X_COLS = 10000;
+const int CONST_NO_OF_PIXELS_Y_ROWS = 500;
+const int CONST_NO_OF_PIXELS_X_COLS = 1000;
 //<check - how do we get the number of cameras?>
 const int NO_OF_CAMERAS = 5;
 
@@ -79,7 +79,7 @@ int main(int argc, char** argv){
     cout << "camera 1 name is : " << cameraVector[0]->camera_name << endl;
     cout << "camera 2 name is : " << cameraVector[1]->camera_name << endl;
     // rate of subscriber is actually the rate at which the publisher publishes.
-    while(true){
+    while(ros::ok()){
         if (!finalImage.empty()){
             //cout << "entered whiletrue loop" << endl;
             msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", finalImage).toImageMsg(); //bgr8 is blue green red with 8UC3
