@@ -14,6 +14,11 @@ find_package(catkin REQUIRED COMPONENTS
   tf2
   tf2_ros
   tf2_geometry_msgs
+  dynamic_reconfigure
+)
+
+generate_dynamic_reconfigure_options(
+  cfg/image_warper.cfg  
 )
 
 find_package( OpenCV REQUIRED )
@@ -49,6 +54,7 @@ add_executable(${PROJECT_NAME}_node_imageStabilization ${NODE_SOURCES})
 
 #1 dependency per executable - may not be reqd
 add_dependencies(${PROJECT_NAME}_node_imageStabilization ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(${PROJECT_NAME}_node_imageStabilization ${PROJECT_NAME}_gencfg)
 
 target_link_libraries(${PROJECT_NAME}_node_imageStabilization
     ${catkin_LIBRARIES}
