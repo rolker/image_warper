@@ -5,6 +5,12 @@
 
 #include "cameraSetup.h"
 
+//below source : http://wiki.ros.org/dynamic_reconfigure/Tutorials/HowToWriteYourFirstCfgFile
+//for dynamic parameterization
+#include <dynamic_reconfigure/server.h>
+//The below config header file will be generated and saved.
+#include <image_warper/image_warperConfig.h>
+
 using namespace std;
 using namespace cv;
 
@@ -100,7 +106,7 @@ void cameraSetup::process_3D_Map() {
     //cout << "process_3D_Map reached" << endl;
     Mat temp_warped_img;
     cv::detail::SphericalWarper sphWarp1(int(image_x_cols/(2*3.14)));
-    cv::detail::CylindricalWarper cylWarp1(int(image_x_cols/(2*3.14)));
+    //cv::detail::CylindricalWarper cylWarp1(int(image_x_cols/(2*3.14)));
     if (!undistorted_cam_data.empty()){
         //cout << "entered into processing part of process_3D_Map" << endl;
         //cout << "undistorted data ..... ===> " << undistort_inp(Range(1000, 1005),  Range(1000, 1002)) << endl;

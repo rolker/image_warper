@@ -26,6 +26,8 @@ void inputImage_camera1CallBack(const sensor_msgs::CameraInfo::ConstPtr&);
 
 bool checkCameraResolution() {
     //do we need to check all cameras together?
+    //not here, required in the Camera class.
+    
 }
 
 bool checkCameraData() {
