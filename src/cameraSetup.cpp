@@ -5,15 +5,14 @@
 
 #include "cameraSetup.h"
 
-//below source : http://wiki.ros.org/dynamic_reconfigure/Tutorials/HowToWriteYourFirstCfgFile
-//for dynamic parameterization
-#include <dynamic_reconfigure/server.h>
-//The below config header file will be generated and saved.
-#include <image_warper/image_warperConfig.h>
-
 using namespace std;
 using namespace cv;
 
+
+//will this cause issue if we multithread it?
+void dynamicConfigurecallback(image_warper::image_warperConfig &config, uint32_t level) {
+    camera_transform_delay = config.transformation_delay;
+}
 
 bool cameraSetup::checkCameraResolution() {
     if ((camera_height ==  -1) || (camera_width ==  -1)){
@@ -48,7 +47,7 @@ bool cameraSetup::calculateRotationMatrix(ros::Time capture_time){//if there is 
         //parameters are target frame, source frame, time at which we want to transform(Time(0) is latest transform.), duration before timeout.
         //transformStamped - will get us the translation and rotation. I am using the rotation for warp. Not using translation currently.
         //transformStamped.transform.translation and transformStamped.transform.rotation
-        transformStamped = tfBuffer->lookupTransform("north_up_base_link" , camera_name + "_optical", capture_time+ros::Duration(-.4));
+        transformStamped = tfBuffer->lookupTransform("north_up_base_link" , camera_name + "_optical", capture_time+ros::Duration(camera_transform_delay));
         //convert msg into a quartenion - do we need to consider only the rotation part here by using transformStamped.transform.rotation? - yes.
         tf2::convert(transformStamped.transform.rotation , q_value);
         q_value = scalar * q_value;
@@ -386,8 +385,15 @@ cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, 
     }
     tfBuffer = new tf2_ros::Buffer(ros::Duration(10), false);
     tfListener = new tf2_ros::TransformListener(*tfBuffer);  //for transform.
+    camera_transform_delay = -0.4; //initial value found via trials.
     image_y_rows = finalimage_rows;
-    image_x_cols = finalimage_cols;    
+    image_x_cols = finalimage_cols; 
+
+    //declare callback variable
+    dynamic_reconfigure::Server<image_warper::image_warperConfig>::CallbackType f;
+    //define callback. we dont need 'this' because we are not writing it as a class.
+    f = boost::bind(&dynamicConfigurecallback, _1, _2);
+    dynamic_config_server.setCallback(f);
 }
 
 

@@ -19,6 +19,13 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>            //to convert from TransformStamped.rotation to Quartenion
 #include <opencv2/calib3d.hpp>                              //for creating a optimal camera matrix
 
+//below source : http://wiki.ros.org/dynamic_reconfigure/Tutorials/HowToWriteYourFirstCfgFile
+//for dynamic parameterization
+#include "dynamic_reconfigure/server.h"
+//The below config header file will be generated and saved.
+#include "image_warper/image_warperConfig.h"
+
+
 //#include <Eigen/Geometry>                                   //for quartenion to rotation matrix
 //#include <tf2/LinearMath/Transform.h>                       //to convert from TransformStamped to Quartenion
 //#include <tf2/geometry_msgs/Transform.h>                       //to convert from TransformStamped to Quartenion
@@ -55,7 +62,9 @@ private:
     ros::Subscriber camerainfo_Subscriber;
     ros::Subscriber inputImage_Subscriber;
     ros::Subscriber tf_Subscriber;
-    ros::Subscriber tf_static_Subscriber;
+    ros::Subscriber tf_static_Subscriber;    
+    dynamic_reconfigure::Server<image_warper::image_warperConfig> dynamic_config_server;
+    double_t camera_transform_delay; //setting it as double_t bcos in cfg file, we do the same.
 
     //Methods declaration
     bool checkCameraResolution();   //checks resolution of the camera if its valid.
