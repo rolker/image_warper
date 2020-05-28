@@ -98,7 +98,7 @@ string type2str(int type) {
 }
 
 void cameraSetup::process_3D_Map() {
-    //cout << "process_3D_Map reached" << endl;
+    //cout << "procenvpss_3D_Map reached" << endl;
     Mat temp_warped_img;
     cv::detail::SphericalWarper sphWarp1(int(image_x_cols/(2*3.14)));
     //cv::detail::CylindricalWarper cylWarp1(int(image_x_cols/(2*3.14)));
@@ -143,6 +143,29 @@ void cameraSetup::process_3D_Map() {
                 //cout << "finalCameraImage.size : " << finalCameraImage.size() << endl;
             }
             Bitt = temp_warped_img.ptr<cv::Vec3b>(i);
+            //find which coordinate exceeds the allowed range.
+            //lowerlimit : -tp1.x
+            //upperlimit : image_x_cols - tp1.x if positive else tp1.x - image_x_cols
+            
+            if (tp1.x >= 0){
+                int val = image_x_cols - tp1.x;
+                if (val >=0){//image start is where we want it to be.
+                    if (val>=cols){//we can copy entire width of warped image.
+                        
+                    }
+                    else{//we can copy from tp1.x to tp1.x+val and then the rest, i need to start from 0/start point.
+                        
+                    }
+                }
+                else{//val is negative, means image is too far ahead, so need to bring it back to start point.
+                    //do from here
+                }
+                
+            }
+            else{//tp1.x is negative
+                
+            }
+            
             //matrix starts from 0 - which is the top left. - we are changing value of each point
             for(int j = 0; j < cols; j++){//case when x coordinate is within the allowed range(0-image_x_cols)
                 if (!((Bitt[j][0]==0) && (Bitt[j][1]==0) && (Bitt[j][2]==0))){//if pixel is not black, copy the values to final image                
