@@ -24,7 +24,7 @@
 #include "dynamic_reconfigure/server.h"
 //The below config header file will be generated and saved.
 #include "image_warper/image_warperConfig.h"
-
+#include "boost/bind.hpp"
 
 //#include <Eigen/Geometry>                                   //for quartenion to rotation matrix
 //#include <tf2/LinearMath/Transform.h>                       //to convert from TransformStamped to Quartenion
@@ -33,11 +33,13 @@
 
 class cameraSetup{
 public:
-    cameraSetup();
-    cameraSetup(std::string);
-    cameraSetup(std::string, ros::NodeHandle&); //if we pass same handle, we can reuse same handle for all 6 cameras.
+    //cameraSetup();
+    //cameraSetup(std::string);
+    //cameraSetup(std::string, ros::NodeHandle&); //if we pass same handle, we can reuse same handle for all 6 cameras.
     cameraSetup(std::string, ros::NodeHandle&, cv::Mat&, int, int);
     ~cameraSetup();
+    void setCameraTransformDelay(double_t delay);
+
     std::string camera_name; //name is without the first forward slash in the topic, eg: pano_1
     int camera_height; //camera resolution height
     int camera_width; //camera resolution width
@@ -63,7 +65,6 @@ private:
     ros::Subscriber inputImage_Subscriber;
     ros::Subscriber tf_Subscriber;
     ros::Subscriber tf_static_Subscriber;    
-    dynamic_reconfigure::Server<image_warper::image_warperConfig> dynamic_config_server;
     double_t camera_transform_delay; //setting it as double_t bcos in cfg file, we do the same.
 
     //Methods declaration

@@ -56,12 +56,23 @@ bool checkCameraData() {
     fs.release();
 }*/
 
+//will this cause issue if we multithread it?
+void dynamicConfigurecallback(image_warper::image_warperConfig &config, uint32_t level) {
+    for (int i = 0; i < NO_OF_CAMERAS; i++){
+        cameraVector[i]->setCameraTransformDelay(config.transformation_delay);
+        cout << "value of dyn param has been set to : " << config.transformation_delay << ", for camera " << cameraVector[i]->camera_name << endl;
+    }
+}
 
 int main(int argc, char** argv){
     string camera_names[] = {"pano_1", "pano_2", "pano_3", "pano_4", "pano_5"}; 
     //<check how to remove the memory leak> - write a destructor inside camerasetup but also we need a delete.
-    ros::init(argc, argv, "imageStabilize_360VR");
+    ros::init(argc, argv, "imageStabilize_360VR");  //node name.
     ros::NodeHandle nodeHandler1;
+    dynamic_reconfigure::Server<image_warper::image_warperConfig> dynamic_config_server;
+    //declare callback variable
+    dynamic_reconfigure::Server<image_warper::image_warperConfig>::CallbackType f;
+    //define callback. we dont need 'this' because we are not writing it as a class.
     for (int i = 0; i < NO_OF_CAMERAS; i++){
         //<check> do from here - undefined ref, need to modify config files.
         //we get a pointer back. do we need new -> we do. destructor will take care of the delete operation.
@@ -81,6 +92,10 @@ int main(int argc, char** argv){
     cout << "camera 1 name is : " << cameraVector[0]->camera_name << endl;
     cout << "camera 2 name is : " << cameraVector[1]->camera_name << endl;
     // rate of subscriber is actually the rate at which the publisher publishes.
+    
+    f = boost::bind(&dynamicConfigurecallback,  _1, _2);
+    dynamic_config_server.setCallback(f);
+    
     while(ros::ok()){
         if (!finalImage.empty()){
             //cout << "entered whiletrue loop" << endl;

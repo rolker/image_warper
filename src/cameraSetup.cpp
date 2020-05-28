@@ -9,10 +9,6 @@ using namespace std;
 using namespace cv;
 
 
-//will this cause issue if we multithread it?
-void dynamicConfigurecallback(image_warper::image_warperConfig &config, uint32_t level) {
-    camera_transform_delay = config.transformation_delay;
-}
 
 bool cameraSetup::checkCameraResolution() {
     if ((camera_height ==  -1) || (camera_width ==  -1)){
@@ -323,7 +319,7 @@ void cameraSetup::setCameraParameters(const Mat intrinsics, const Mat distortion
 }
 
 
-cameraSetup::cameraSetup()
+/*cameraSetup::cameraSetup()
 :camera_name("unassigned name"),camera_height(-1), camera_width(-1){    
     //cout << "cameraSetup::cameraSetup() entered" << endl;
 }   
@@ -340,9 +336,14 @@ cameraSetup::cameraSetup(string name, ros::NodeHandle& handle)
     camerainfo_Subscriber = handle.subscribe("/" + camera_name + "/camera_info",10, &cameraSetup::info_cameraCallBack, this);
     //Creates subscriber for Camera Image
     inputImage_Subscriber = handle.subscribe("/" + camera_name + "/image_raw",10, &cameraSetup::inputImage_cameraCallBack, this);
-    /*imgTransp_subscriber(handle);
-    inputImage_Subscriber = imgTransp_subscriber.subscribe("/" + camera_name + "/image_raw",10, &cameraSetup::inputImage_cameraCallBack, this); //<check if compile issue here>*/
+    //imgTransp_subscriber(handle);
+    //inputImage_Subscriber = imgTransp_subscriber.subscribe("/" + camera_name + "/image_raw",10, &cameraSetup::inputImage_cameraCallBack, this); //<check if compile issue here>
     //cout << "reached end of 2nd const" << endl;
+}
+*/
+
+void cameraSetup::setCameraTransformDelay(double_t delay){
+    camera_transform_delay = delay;
 }
 
 //Note : This will cause an issue if we parallelise the code. We will have to synchronize it around the finalImage object because all camera objects will be updating the final image, if so.
@@ -385,15 +386,8 @@ cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, 
     }
     tfBuffer = new tf2_ros::Buffer(ros::Duration(10), false);
     tfListener = new tf2_ros::TransformListener(*tfBuffer);  //for transform.
-    camera_transform_delay = -0.4; //initial value found via trials.
     image_y_rows = finalimage_rows;
     image_x_cols = finalimage_cols; 
-
-    //declare callback variable
-    dynamic_reconfigure::Server<image_warper::image_warperConfig>::CallbackType f;
-    //define callback. we dont need 'this' because we are not writing it as a class.
-    f = boost::bind(&dynamicConfigurecallback, _1, _2);
-    dynamic_config_server.setCallback(f);
 }
 
 
