@@ -47,6 +47,7 @@ include_directories(
 set(NODE_SOURCES 
     src/cameraSetup.cpp
     src/Executor.cpp
+    src/output_server.cpp
 )
 
 add_executable(${PROJECT_NAME}_node_imageStabilization ${NODE_SOURCES})
