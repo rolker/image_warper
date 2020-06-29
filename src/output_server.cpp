@@ -17,6 +17,46 @@ private:
     void udp_videoTransferCallback(){
         
     }
+    int createListenerSocket(uint32_t interface, uint32_t mcast_address, uint16_t port){
+        //1. Create an unbound UDP socket.
+        //AF_INET - for IPV4. Use AF_INET6 for IPV6.
+        int ret = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if(ret < 0) //if error, return the negative value.
+            return ret;
+        int one = 1;
+        if (setsockopt(ret, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof(one)))
+        {
+            close(ret);
+            return -1;
+        }
+        timeval timeout;      
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
+        if (setsockopt (ret, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+        {
+            close(ret);
+            return -1;
+        }
+        sockaddr_in listenAddress;
+        memset(&listenAddress, 0, sizeof(listenAddress));
+        listenAddress.sin_family = AF_INET;
+        listenAddress.sin_addr.s_addr = htonl(INADDR_ANY);
+        listenAddress.sin_port = port;
+        if (bind(ret, (sockaddr *)&listenAddress, sizeof(listenAddress)) < 0)
+        {
+            close(ret);
+            return -1;
+        }
+        ip_mreq mreq;
+        mreq.imr_interface.s_addr = interface;
+        mreq.imr_multiaddr.s_addr = mcast_address;
+        if (setsockopt(ret, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&mreq, sizeof(mreq)))
+        {
+            close(ret);
+            return -1;
+        }
+        return ret;
+    }
 
 };
 
