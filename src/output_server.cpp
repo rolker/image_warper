@@ -1,5 +1,8 @@
 #include "iostream"
-#include "ros/ros.h"
+#include "ros/ros.h"    
+#include <netinet/in.h> //Internet Address family and for socket
+#include <unistd.h>     //for close
+#include "string.h"     //for memset and strings.
 
 class output_server{
 public:
@@ -17,45 +20,43 @@ private:
     void udp_videoTransferCallback(){
         
     }
-    int createListenerSocket(uint32_t interface, uint32_t mcast_address, uint16_t port){
-        //1. Create an unbound UDP socket.
+    //<check> passing of the ipaddress should be required, either as const std::string or as 
+    int createListenerSocket(const std::string inpIPAddress, uint16_t port){
+        //1. Create an unbound UDP socket and returns socket file descriptor.
         //AF_INET - for IPV4. Use AF_INET6 for IPV6.
-        int ret = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-        if(ret < 0) //if error, return the negative value.
-            return ret;
+        int retCode = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if(retCode < 0) //if error, return the negative value.
+            return retCode;
         int one = 1;
-        if (setsockopt(ret, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof(one)))
+        //2.Setting socketoptions - SO_REUSEADDR, SO_RCVTIMEO
+        if (setsockopt(retCode, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof(one)))
         {
-            close(ret);
+            close(retCode); //closes socket file descriptor
             return -1;
         }
-        timeval timeout;      
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 0;
-        if (setsockopt (ret, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+        //create a timeout of 1s 0microseconds
+        timeval timeout; timeout.tv_sec = 1;timeout.tv_usec = 0;
+        if (setsockopt (retCode, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
         {
-            close(ret);
+            close(retCode);
             return -1;
         }
+        //3. For listener, specifies an ipaddress and port for the family.
         sockaddr_in listenAddress;
+        //initialize listeneraddress memory block to all zeroes.
         memset(&listenAddress, 0, sizeof(listenAddress));
+        //set family and ip addr, port.
         listenAddress.sin_family = AF_INET;
+        //htonl is hosttonetwork long. in host, Least Significant Byte is first, in network, Most Significant Byte first.
+        //<check> - we need to change this. INADDR_ANY - accepts connections to any ip on the machine
         listenAddress.sin_addr.s_addr = htonl(INADDR_ANY);
         listenAddress.sin_port = port;
-        if (bind(ret, (sockaddr *)&listenAddress, sizeof(listenAddress)) < 0)
+        //4.Bind the socket to the ipaddress
+        if (bind(retCode, (sockaddr *)&listenAddress, sizeof(listenAddress)) < 0)
         {
-            close(ret);
+            close(retCode);
             return -1;
         }
-        ip_mreq mreq;
-        mreq.imr_interface.s_addr = interface;
-        mreq.imr_multiaddr.s_addr = mcast_address;
-        if (setsockopt(ret, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&mreq, sizeof(mreq)))
-        {
-            close(ret);
-            return -1;
-        }
-        return ret;
     }
 
 };
