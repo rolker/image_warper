@@ -1,22 +1,47 @@
+// Author : Deepak Narayan
+//Reference : https://github.com/rolker/halo_radar/blob/master/src/halo_radar/halo_radar.cpp - Authored by Roland Arsenault
+// Center for Coastal and Ocean Mapping
+// University of New Hampshire
+// Copyright May 2020, All rights reserved.
+
+
 #include "iostream"
 #include "ros/ros.h"    
 #include <netinet/in.h> //Internet Address family and for socket
 #include <unistd.h>     //for close
 #include "string.h"     //for memset and strings.
+#include <mutex>        //for mutexes and locks.
+
+using namespace std;
 
 class output_server{
 public:
-    output_server(){
+    output_server()
+    :exitFlag(false){
         //will need to modify this node to access the h265 version of video.
         finalImage_Subscriber = node_handle_1.subscribe("finalimage/image_raw", 10, &output_server::udp_videoTransferCallback, this);
+        //<check> pass ipaddress here.
+        int listen_socket = createListenerSocket("127.0.0.1", 1737);
+        if (listen_socket < 0){
+            perror("Server Listener socket creation failed.");
+            return; //<check> using a return in constructor is fine, but will it cause issue if object.method() is called in next line in main?
+        }
+        processData();
     }
     
-    ~output_server(){}
+    ~output_server(){
+        {
+            const std::lock_guard<std::mutex> lock(exitFlagMutex);
+            exitFlag = true;
+        }
+    }
     
     
 private:
     ros::NodeHandle node_handle_1;
     ros::Subscriber finalImage_Subscriber;
+    bool exitFlag;
+    std::mutex exitFlagMutex;
     void udp_videoTransferCallback(){
         
     }
@@ -50,13 +75,28 @@ private:
         //htonl is hosttonetwork long. in host, Least Significant Byte is first, in network, Most Significant Byte first.
         //<check> - we need to change this. INADDR_ANY - accepts connections to any ip on the machine
         listenAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-        listenAddress.sin_port = port;
+        listenAddress.sin_port = htons(port);
         //4.Bind the socket to the ipaddress
         if (bind(retCode, (sockaddr *)&listenAddress, sizeof(listenAddress)) < 0)
         {
             close(retCode);
             return -1;
         }
+    }
+    
+    void processData(){
+        uint8_t in_data[65535];
+        while (true){
+            {//to give a special scope so that mutex lock scopes out immediately after the braces end.
+                const std::lock_guard<std::mutex> lock(exitFlagMutex);
+                if (exitFlag)
+                    break;
+            }
+            
+            
+        }
+        
+
     }
 
 };
