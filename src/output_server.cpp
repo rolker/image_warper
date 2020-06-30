@@ -87,12 +87,13 @@ private:
     void processData(){
         uint8_t in_data[65535];
         while (true){
+            //do we need the mutex here for this case?
             {//to give a special scope so that mutex lock scopes out immediately after the braces end.
                 const std::lock_guard<std::mutex> lock(exitFlagMutex);
                 if (exitFlag)
                     break;
             }
-            
+        
             
         }
         
