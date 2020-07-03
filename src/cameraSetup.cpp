@@ -100,8 +100,8 @@ string type2str(int type) {
 void cameraSetup::process_3D_Map() {
     //cout << "procenvpss_3D_Map reached" << endl;
     Mat temp_warped_img;
-    cv::detail::SphericalWarper sphWarp1(int(image_x_cols/(2*3.14)));
-    //cv::detail::CylindricalWarper cylWarp1(int(image_x_cols/(2*3.14)));
+    //cv::detail::SphericalWarper sphWarp1(int(image_x_cols/(2*3.14)));
+    cv::detail::CylindricalWarper cylWarp1(int(image_x_cols/(2*3.14)));
     if (!undistorted_cam_data.empty()){
         //cout << "entered into processing part of process_3D_Map" << endl;
         //cout << "undistorted data ..... ===> " << undistort_inp(Range(1000, 1005),  Range(1000, 1002)) << endl;
@@ -110,7 +110,7 @@ void cameraSetup::process_3D_Map() {
         Point tp1 = sphWarp1.warp(undistorted_cam_data, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
         //Point tp1 = sphWarp1.warp(undistorted_cam_data, camera_intrinsics, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
         //whichever camdata is coming in callback, we need to pass that. Also the rotation matrix corresponding to that camera.
-        //Point tp1 = cylWarp1.warp(undistorted_cam_data, camera_intrinsics, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
+        Point tp1 = cylWarp1.warp(undistorted_cam_data, camera_intrinsics, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
         cv::Size s = temp_warped_img.size();
         int rows = s.height;
         int cols = s.width;        
@@ -147,6 +147,8 @@ void cameraSetup::process_3D_Map() {
             //lowerlimit : -tp1.x
             //upperlimit : image_x_cols - tp1.x if positive else tp1.x - image_x_cols
             
+            /*Trying a different logic starts here*/
+            /*
             if (tp1.x >= 0){
                 int val = image_x_cols - tp1.x;
                 if (val >=0){//image start is where we want it to be.
@@ -165,6 +167,8 @@ void cameraSetup::process_3D_Map() {
             else{//tp1.x is negative
                 
             }
+            */
+            /*Trying a different logic ends here*/
             
             //matrix starts from 0 - which is the top left. - we are changing value of each point
             for(int j = 0; j < cols; j++){//case when x coordinate is within the allowed range(0-image_x_cols)
@@ -233,6 +237,21 @@ void cameraSetup::process_3D_Map() {
         imshow("finalImage", finalCameraImage);
         resizeWindow("finalImage", 500, 1000);
         waitKey();*/
+        if (!finalCameraImage.empty()){
+            cout << "entered whiletrue loop" << endl;
+            msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", finalCameraImage).toImageMsg(); //bgr8 is blue green red with 8UC3
+            if ((msg != nullptr) && (finalimage_publisher!= NULL)){
+                finalimage_publisher.publish(msg);
+                cout << "final image published.." << endl;
+            }   
+            else{
+             cout << "Image publishing condition failed for this iteration." << endl;   
+            }
+        }
+        else{
+            cout << "final image is empty.." << endl;
+        }
+        cout << "---------------------processing done-------------------------------------------------" << this->camera_name << endl;
 
     }
     else{
@@ -243,10 +262,10 @@ void cameraSetup::process_3D_Map() {
 
 
 void cameraSetup::info_cameraCallBack(const sensor_msgs::CameraInfo::ConstPtr& inpMsg){
-    cout << "info_cameraCallBack reached." << endl;
+    //cout << "info_cameraCallBack reached." << endl;
     camera_height = inpMsg->height;
     camera_width = inpMsg->width;
-    cout <<  camera_name << ", " <<  camera_height << ", " <<  camera_width <<  endl;   
+    //cout <<  camera_name << ", " <<  camera_height << ", " <<  camera_width <<  endl;   
 }
 
 void cameraSetup::inputImage_cameraCallBack(const sensor_msgs::Image::ConstPtr& inpMsg){
@@ -263,7 +282,7 @@ void cameraSetup::inputImage_cameraCallBack(const sensor_msgs::Image::ConstPtr& 
     }
     cam_data = cv_cam_ptr->image;
     ros::Time time_of_capture =  inpMsg->header.stamp;
-    cout << "time of capture is : " << time_of_capture << endl;
+    //cout << "time of capture is : " << time_of_capture << endl;
     
     if ((checkCameraResolution()) && (checkCameraData())) {
         //cout << "inputImage_cameraCallBack reached. - 1" << endl;
@@ -295,11 +314,31 @@ void cameraSetup::inputImage_cameraCallBack(const sensor_msgs::Image::ConstPtr& 
                 setRotationMatrix((Mat_<float>(3,3) << 0.0000000, -0.7071068,  0.7071068, 0.7071068,  0.5000000,  0.5000000, -0.7071068,  0.5000000,  0.5000000));*/
             // Performing undistort on image.
             cv::Size distort_size = cam_data.size();
-            new_optimal_camera_matrix = getOptimalNewCameraMatrix(camera_intrinsics, camera_dist_coefficients, distort_size, 1);
-            cout << "new_optimal_camera_matrix : " << new_optimal_camera_matrix;
-            cout << "camera_intrinsics : " << camera_intrinsics;
-            undistort(cam_data, undistorted_cam_data, camera_intrinsics, camera_dist_coefficients, new_optimal_camera_matrix);
+            int distort_type = cam_data.type();
+            //cout << "distorted image height : " << distort_size.height << "," << " distorted image width : " << distort_size.width << endl;
             
+            new_optimal_camera_matrix = getOptimalNewCameraMatrix(camera_intrinsics, camera_dist_coefficients, distort_size, 1);
+            //cout << "new_optimal_camera_matrix : " << new_optimal_camera_matrix;
+            //cout << "camera_intrinsics : " << camera_intrinsics;
+            undistort(cam_data, undistorted_cam_data, camera_intrinsics, camera_dist_coefficients, new_optimal_camera_matrix);
+            //cout << "undistorted image height : " << undistorted_cam_data.size().height << "," << " undistorted image width : " << undistorted_cam_data.size().width << endl;
+            //I am using a caching scheme here.
+            //For the first time, if the data doesnt come in properly,
+            //then we have 
+            if ((dummy_white_Mat.size()!=cam_data.size()) || (dummy_white_Mat.type()!=cam_data.type())){
+                /*creating a new white Mat object and then undistorting it.*/
+                try{
+                    dummy_white_Mat = Mat(distort_size, distort_type, Scalar(255, 255, 255));
+                    //undistort the white image.
+                    undistort(dummy_white_Mat, undistort_dummy_white_Mat, camera_intrinsics, camera_dist_coefficients, new_optimal_camera_matrix);   
+                    /*namedWindow("undistort_dummy_white_Mat", WINDOW_FREERATIO);
+                    imshow("undistort_dummy_white_Mat", undistort_dummy_white_Mat);
+                    waitKey();*/
+                }
+                catch(Exception &e){
+                    ROS_WARN("%s",e.what());
+                }
+            }
             /*newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
             mapx, mapy = cv2.initUndistortRectifyMap(camera_intrinsics, camera_dist_coefficients, cam_data, new_optimal_camera_matrix, dim, 5)
             image = cv2.remap(image, mapx, mapy, cv2.INTER_LINEAR)
@@ -317,6 +356,9 @@ void cameraSetup::inputImage_cameraCallBack(const sensor_msgs::Image::ConstPtr& 
             waitKey(); //pbly will be better to overwrite the same Mat object  */
             if (!new_optimal_camera_matrix.empty())
                 process_3D_Map();
+            Mat testMat;
+            undistorted_cam_data.copyTo(testMat, undistort_dummy_white_Mat); //copying using mask
+            //cout << "testMat image height : " << testMat.size().height << "," << " testMat image width : " << testMat.size().width << endl;
         } 
     }
     //Mat ROI_cam1_data = cam_data(Range(1000, 1005),  Range(1000, 1002));
@@ -370,7 +412,7 @@ void cameraSetup::setCameraTransformDelay(double_t delay){
 }
 
 //Note : This will cause an issue if we parallelise the code. We will have to synchronize it around the finalImage object because all camera objects will be updating the final image, if so.
-cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, int finalimage_rows, int finalimage_cols)
+cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, sensor_msgs::ImagePtr& finalImageMsg, image_transport::Publisher& finalImagepub, int finalimage_rows, int finalimage_cols)
 :camera_name(name),camera_height(-1), camera_width(-1){
     rotation_matrix = cv::Mat(3, 3, CV_32F);
     //cout << "cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, int finalimage_rows, int finalimage_cols) entered" << endl;
@@ -379,6 +421,8 @@ cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, 
     //Creates subscriber for Camera Image
     inputImage_Subscriber = handle.subscribe("/" + camera_name + "/image_raw",10, &cameraSetup::inputImage_cameraCallBack, this);
     finalCameraImage = finalImage;
+    msg = finalImageMsg;
+    finalimage_publisher = finalImagepub;
     //<check> - need to change the below to receive from a rostopic later or from a server. Will see.
     /*if (camera_name == "pano_1"){
         setCameraParameters((Mat_<float>(3,3) << 1884.288597944681, 0, 1281.298355259871, 0, 1584.885477343124, 636.5814917534733, 0, 0, 1), (Mat_<float>(1,5) << -0.4173570405287141, 0.1493134654766953, 0.008037288266852087, -0.0007342658995463636, 0), (Mat_<float>(3,3) << 1,0,0,0,1,0,0,0,1));

@@ -36,7 +36,7 @@ public:
     //cameraSetup();
     //cameraSetup(std::string);
     //cameraSetup(std::string, ros::NodeHandle&); //if we pass same handle, we can reuse same handle for all 6 cameras.
-    cameraSetup(std::string, ros::NodeHandle&, cv::Mat&, int, int);
+    cameraSetup(std::string, ros::NodeHandle&, cv::Mat&, sensor_msgs::ImagePtr&, image_transport::Publisher&, int, int);
     ~cameraSetup();
     void setCameraTransformDelay(double_t delay);
 
@@ -52,6 +52,8 @@ private:
     cv::Mat cam_data, undistorted_cam_data;
     cv::Mat camera_intrinsics, camera_dist_coefficients, rotation_matrix;
     cv::Mat finalCameraImage;
+    sensor_msgs::ImagePtr msg;
+    image_transport::Publisher finalimage_publisher;
     int image_y_rows;
     int image_x_cols;
     tf2_ros::Buffer* tfBuffer;
@@ -66,7 +68,9 @@ private:
     ros::Subscriber tf_Subscriber;
     ros::Subscriber tf_static_Subscriber;    
     double_t camera_transform_delay; //setting it as double_t bcos in cfg file, we do the same.
-
+    cv::Mat dummy_white_Mat;
+    cv::Mat undistort_dummy_white_Mat;
+    
     //Methods declaration
     bool checkCameraResolution();   //checks resolution of the camera if its valid.
     bool checkCameraData();         //checks input camera data if its valid.
