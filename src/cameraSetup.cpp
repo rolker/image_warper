@@ -100,17 +100,17 @@ string type2str(int type) {
 void cameraSetup::process_3D_Map() {
     //cout << "procenvpss_3D_Map reached" << endl;
     Mat temp_warped_img;
-    //cv::detail::SphericalWarper sphWarp1(int(image_x_cols/(2*3.14)));
-    cv::detail::CylindricalWarper cylWarp1(int(image_x_cols/(2*3.14)));
+    cv::detail::SphericalWarper sphWarp1(int(image_x_cols/(2*3.14)));
+    //cv::detail::CylindricalWarper cylWarp1(int(image_x_cols/(2*3.14)));
     if (!undistorted_cam_data.empty()){
         //cout << "entered into processing part of process_3D_Map" << endl;
         //cout << "undistorted data ..... ===> " << undistort_inp(Range(1000, 1005),  Range(1000, 1002)) << endl;
         //cout << endl << "warping is being done" << endl;
         //Point tp1 is the top left corner of image
         Point tp1 = sphWarp1.warp(undistorted_cam_data, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
-        //Point tp1 = sphWarp1.warp(undistorted_cam_data, camera_intrinsics, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
+        //using original camera matrix - Point tp1 = sphWarp1.warp(undistorted_cam_data, camera_intrinsics, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
         //whichever camdata is coming in callback, we need to pass that. Also the rotation matrix corresponding to that camera.
-        Point tp1 = cylWarp1.warp(undistorted_cam_data, camera_intrinsics, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
+        //Point tp1 = cylWarp1.warp(undistorted_cam_data, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
         cv::Size s = temp_warped_img.size();
         int rows = s.height;
         int cols = s.width;        
