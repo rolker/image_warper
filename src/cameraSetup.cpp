@@ -415,14 +415,13 @@ void cameraSetup::setCameraTransformDelay(double_t delay){
 
 //Note : This will cause an issue if we parallelise the code. We will have to synchronize it around the finalImage object because all camera objects will be updating the final image, if so.
 cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, sensor_msgs::ImagePtr& finalImageMsg, image_transport::Publisher& finalImagepub, std::mutex& sharedInpMutex, int finalimage_rows, int finalimage_cols)
-:camera_name(name),camera_height(-1), camera_width(-1){
+:camera_name(name),camera_height(-1), camera_width(-1), sharedMutex(sharedInpMutex){
     rotation_matrix = cv::Mat(3, 3, CV_32F);
     //cout << "cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, int finalimage_rows, int finalimage_cols) entered" << endl;
     //Creates subscriber for Camera Info
     camerainfo_Subscriber = handle.subscribe("/" + camera_name + "/camera_info",10, &cameraSetup::info_cameraCallBack, this);
     //Creates subscriber for Camera Image
     inputImage_Subscriber = handle.subscribe("/" + camera_name + "/image_raw",10, &cameraSetup::inputImage_cameraCallBack, this);
-    sharedMutex = sharedInpMutex;
     //3 shared variables which form the invariant
     {
         const std::lock_guard<std::mutex> lock(sharedMutex);

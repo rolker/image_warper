@@ -56,7 +56,7 @@ private:
     cv::Mat finalCameraImage;
     sensor_msgs::ImagePtr msg;
     image_transport::Publisher finalimage_publisher;
-    std::mutex sharedMutex;
+    std::mutex &sharedMutex;
     int image_y_rows;
     int image_x_cols;
     tf2_ros::Buffer* tfBuffer;

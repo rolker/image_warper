@@ -20,6 +20,9 @@ Mat finalImage(CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS, CV_8UC3);
 sensor_msgs::ImagePtr msg;
 image_transport::Publisher finalimage_publisher;
 vector<cameraSetup*> cameraVector; //<check>
+vector<string> camera_names;
+vector<std::thread> camera_threads;
+
 std::mutex sharedMutex;
 
 //will this cause issue if we multithread it?
@@ -30,12 +33,21 @@ void dynamicConfigurecallback(image_warper::image_warperConfig &config, uint32_t
     }
 }
 
+// Define a function/ lambda expression for the threads and callable.
+void callableFunc(std::string name, ros::NodeHandle& handle, cv::Mat& image, sensor_msgs::ImagePtr& message, image_transport::Publisher& publisher_obj, std::mutex& mutex_obj, int y_rows, int x_cols) { 
+        //we get a pointer back. do we need new -> we do. destructor will take care of the delete operation.
+        cameraVector.push_back(new cameraSetup(name, handle, image, message, publisher_obj, mutex_obj, y_rows, x_cols));              
+}
+    
 //bool videoStreamCallbackForVR(){
 //    }
 
 
 int main(int argc, char** argv){
-    string camera_names[] = {"pano_1", "pano_2", "pano_3", "pano_4", "pano_5"}; 
+    for (int i = 0; i < NO_OF_CAMERAS; i++){
+        camera_names.push_back("pano_" + to_string(i+1));
+        cout << "camera names are : " << camera_names[i] << endl;
+    }
     //<check how to remove the memory leak> - write a destructor inside camerasetup but also we need a delete.
     ros::init(argc, argv, "imageStabilize_360VR");  //node name.
     ros::NodeHandle nodeHandler1;
@@ -47,15 +59,11 @@ int main(int argc, char** argv){
     ros::NodeHandle nodeHandler2_pub;
     image_transport::ImageTransport imgTransp(nodeHandler2_pub);
     finalimage_publisher = imgTransp.advertise("finalimage/image_raw", 1);
-    // Define a lamda expression for the threads and callable.
-    auto createCameraThreads = [](std::string name, ros::NodeHandle& handle, cv::Mat& image, sensor_msgs::ImagePtr& message, image_transport::Publisher& publisher_obj, std::mutex& mutex_obj, int y_rows, int x_cols) { 
-        //we get a pointer back. do we need new -> we do. destructor will take care of the delete operation.
-        cameraVector.push_back(new cameraSetup(name, handle, image, message, publisher_obj, mutex_obj, y_rows, x_cols);
-    };
+    
+        
     for (int i = 0; i < NO_OF_CAMERAS; i++){
-
         //<check> do from here - undefined ref, need to modify config files.
-        std::thread camera_thread(createCameraThreads, camera_names[i], nodeHandler1, finalImage, msg, finalimage_publisher, sharedMutex, CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS);
+        camera_threads.push_back(std::thread(callableFunc,camera_names[i], nodeHandler1, finalImage, msg, finalimage_publisher, sharedMutex, CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS));
         
     }
     //subscribers for camera image data
