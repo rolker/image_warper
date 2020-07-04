@@ -25,6 +25,8 @@
 //The below config header file will be generated and saved.
 #include "image_warper/image_warperConfig.h"
 #include "boost/bind.hpp"
+#include <thread>
+#include <mutex>
 
 //#include <Eigen/Geometry>                                   //for quartenion to rotation matrix
 //#include <tf2/LinearMath/Transform.h>                       //to convert from TransformStamped to Quartenion
@@ -36,7 +38,7 @@ public:
     //cameraSetup();
     //cameraSetup(std::string);
     //cameraSetup(std::string, ros::NodeHandle&); //if we pass same handle, we can reuse same handle for all 6 cameras.
-    cameraSetup(std::string, ros::NodeHandle&, cv::Mat&, sensor_msgs::ImagePtr&, image_transport::Publisher&, int, int);
+    cameraSetup(std::string, ros::NodeHandle&, cv::Mat&, sensor_msgs::ImagePtr&, image_transport::Publisher&, std::mutex&, int, int);
     ~cameraSetup();
     void setCameraTransformDelay(double_t delay);
 
@@ -54,6 +56,7 @@ private:
     cv::Mat finalCameraImage;
     sensor_msgs::ImagePtr msg;
     image_transport::Publisher finalimage_publisher;
+    std::mutex sharedMutex;
     int image_y_rows;
     int image_x_cols;
     tf2_ros::Buffer* tfBuffer;

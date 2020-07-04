@@ -127,132 +127,134 @@ void cameraSetup::process_3D_Map() {
         Vec3b* Aitt;
         Vec3b* Bitt;
         //no need for delete as I am not using 'new'.
-        //<check>have to add a check if its black cell or not.
-        for(int i = 0; i < rows; i++)
-        {   
-            if ((tp1.y + i >= 0) && (tp1.y + i < image_y_rows)){//case when y coordinate is within the allowed range(0-image_y_rows)
-                Aitt = finalCameraImage.ptr<cv::Vec3b>(tp1.y + i);
-            }
-            else if (tp1.y + i >= image_y_rows){//case when y coordinate has exceeded the allowed range and is greater
-                Aitt = finalCameraImage.ptr<cv::Vec3b>((-1 * image_y_rows) + tp1.y + i);
-            }
-            else{//case when y coordinate is less than the allowed range
-                //cout << "tp1.x + i, should be < 0 : " << tp1.x + i << endl;
-                //~5000 rows and 10000 columns available in final image.
-                Aitt = finalCameraImage.ptr<cv::Vec3b>((image_y_rows) + tp1.y + i);
-                //cout << "finalCameraImage.size : " << finalCameraImage.size() << endl;
-            }
-            Bitt = temp_warped_img.ptr<cv::Vec3b>(i);
-            //find which coordinate exceeds the allowed range.
-            //lowerlimit : -tp1.x
-            //upperlimit : image_x_cols - tp1.x if positive else tp1.x - image_x_cols
-            
-            /*Trying a different logic starts here*/
-            /*
-            if (tp1.x >= 0){
-                int val = image_x_cols - tp1.x;
-                if (val >=0){//image start is where we want it to be.
-                    if (val>=cols){//we can copy entire width of warped image.
-                        
-                    }
-                    else{//we can copy from tp1.x to tp1.x+val and then the rest, i need to start from 0/start point.
-                        
-                    }
+        {//using same mutex for the invariant.
+            const std::lock_guard<std::mutex> lock(sharedMutex);
+            //<check>have to add a check if its black cell or not.
+            for(int i = 0; i < rows; i++)
+            {   
+                if ((tp1.y + i >= 0) && (tp1.y + i < image_y_rows)){//case when y coordinate is within the allowed range(0-image_y_rows)
+                    Aitt = finalCameraImage.ptr<cv::Vec3b>(tp1.y + i);
                 }
-                else{//val is negative, means image is too far ahead, so need to bring it back to start point.
-                    //do from here
+                else if (tp1.y + i >= image_y_rows){//case when y coordinate has exceeded the allowed range and is greater
+                    Aitt = finalCameraImage.ptr<cv::Vec3b>((-1 * image_y_rows) + tp1.y + i);
                 }
+                else{//case when y coordinate is less than the allowed range
+                    //cout << "tp1.x + i, should be < 0 : " << tp1.x + i << endl;
+                    //~5000 rows and 10000 columns available in final image.
+                    Aitt = finalCameraImage.ptr<cv::Vec3b>((image_y_rows) + tp1.y + i);
+                    //cout << "finalCameraImage.size : " << finalCameraImage.size() << endl;
+                }
+                Bitt = temp_warped_img.ptr<cv::Vec3b>(i);
+                //find which coordinate exceeds the allowed range.
+                //lowerlimit : -tp1.x
+                //upperlimit : image_x_cols - tp1.x if positive else tp1.x - image_x_cols
                 
-            }
-            else{//tp1.x is negative
-                
-            }
-            */
-            /*Trying a different logic ends here*/
-            
-            //matrix starts from 0 - which is the top left. - we are changing value of each point
-            for(int j = 0; j < cols; j++){//case when x coordinate is within the allowed range(0-image_x_cols)
-                if (!((Bitt[j][0]==0) && (Bitt[j][1]==0) && (Bitt[j][2]==0))){//if pixel is not black, copy the values to final image                
-                    if ((tp1.x + j >= 0) && (tp1.x + j < image_x_cols)){
-                        //cout << "tp1.y + j : " << tp1.y + j << endl;
-                        //if (Bitt[j] !=0)  //<check>start from here
-                        Aitt[tp1.x + j] = Bitt[j];
+                /*Trying a different logic starts here*/
+                /*
+                if (tp1.x >= 0){
+                    int val = image_x_cols - tp1.x;
+                    if (val >=0){//image start is where we want it to be.
+                        if (val>=cols){//we can copy entire width of warped image.
+                            
+                        }
+                        else{//we can copy from tp1.x to tp1.x+val and then the rest, i need to start from 0/start point.
+                            
+                        }
                     }
-                    else if(tp1.x + j >= image_x_cols){//case when x coordinate has exceeded the allowed range and is greater
-                        Aitt[(-1 * image_x_cols) + tp1.x + j] = Bitt[j];
+                    else{//val is negative, means image is too far ahead, so need to bring it back to start point.
+                        //do from here
                     }
-                    else{//case when x coordinate is less than the allowed range
-                        Aitt[(image_x_cols) + tp1.x + j] = Bitt[j];
-                    }    
+                    
                 }
-            }
+                else{//tp1.x is negative
+                    
+                }
+                */
+                /*Trying a different logic ends here*/
+                
+                //matrix starts from 0 - which is the top left. - we are changing value of each point
+                for(int j = 0; j < cols; j++){//case when x coordinate is within the allowed range(0-image_x_cols)
+                    if (!((Bitt[j][0]==0) && (Bitt[j][1]==0) && (Bitt[j][2]==0))){//if pixel is not black, copy the values to final image                
+                        if ((tp1.x + j >= 0) && (tp1.x + j < image_x_cols)){
+                            //cout << "tp1.y + j : " << tp1.y + j << endl;
+                            //if (Bitt[j] !=0)  //<check>start from here
+                            Aitt[tp1.x + j] = Bitt[j];
+                        }
+                        else if(tp1.x + j >= image_x_cols){//case when x coordinate has exceeded the allowed range and is greater
+                            Aitt[(-1 * image_x_cols) + tp1.x + j] = Bitt[j];
+                        }
+                        else{//case when x coordinate is less than the allowed range
+                            Aitt[(image_x_cols) + tp1.x + j] = Bitt[j];
+                        }    
+                    }
+                }
 
-        }
-        
-        /*for(int i = 0; i < rows; i++)
-        {   
-            if (tp1.x + i >= 0){
-                //no need for delete as I am not using 'new'.
-                Aitt = finalCameraImage.ptr<cv::Vec3b>(tp1.x + i);
             }
-            else{
-                //cout << "tp1.x + i, should be < 0 : " << tp1.x + i << endl;
-                //~5000 rows and 10000 columns available in final image.
-                Aitt = finalCameraImage.ptr<cv::Vec3b>((image_x_cols) + tp1.x + i);
-                //cout << "finalCameraImage.size : " << finalCameraImage.size() << endl;
-            }
-            Bitt = temp_warped_img.ptr<cv::Vec3b>(i);
-            //matrix starts from 0 - which is the top left.
-            for(int j = 0; j < cols; j++){
-                if (tp1.y + j >= 0){
-                    //cout << "tp1.y + j : " << tp1.y + j << endl;
-                    Aitt[tp1.y + j] = Bitt[j];
+            
+            /*for(int i = 0; i < rows; i++)
+            {   
+                if (tp1.x + i >= 0){
+                    //no need for delete as I am not using 'new'.
+                    Aitt = finalCameraImage.ptr<cv::Vec3b>(tp1.x + i);
                 }
                 else{
-                    Aitt[(image_y_rows) + tp1.y + j] = Bitt[j]; //because we have an width:height ratio of 2:1 
-                }    
-            }                
-        }*/
-        
-        
-        //Mat ROI_finalImage2 = finalCameraImage(Range(100,110),  Range(100,110));
-        //cout << "ROI_finalcameraImage2 is : " <<  endl << ROI_finalImage2 <<  endl; 
-        
-        /*cv::Size s2 = temp_warped_img.size();
-        int rows2 = s2.height;
-        int cols2 = s2.width;*/
-        //cout <<  "Size of temp_warped_img Mat is : " <<  rows2 <<  ", " <<  cols2 <<  endl;
-        //cout <<  "size variable of temp_warped_img Mat is given as " <<  s2 <<  endl;
-        //Mat ROI_final_image = finalCameraImage(Range(tp1.x,tp1.y),  Range(tp1.x + 1,tp1.y + 1));
-        //cout << "ROI_final_image is : " <<  endl << ROI_final_image <<  endl; 
-        /*namedWindow("cam1_inputImage_cameraCallBackdistorted_insidewarper", WINDOW_AUTOSIZE);
-        imshow("cam1_distorted_insidewarper", cam_data);
-        namedWindow("cam1_undistorted", WINDOW_AUTOSIZE);
-        imshow("cam1_undistorted", undistorted_cam_data);
-        namedWindow("warpedImage", WINDOW_AUTOSIZE);
-        imshow("warpedImage", temp_warped_img);*/
-//        namedWindow("ROI_temp", WINDOW_AUTOSIZE);
-//        imshow("ROI_temp", ROI_temp);
-        /*namedWindow("finalImage", 0); //only windows without autosize can be resized
-        imshow("finalImage", finalCameraImage);
-        resizeWindow("finalImage", 500, 1000);
-        waitKey();*/
-        if (!finalCameraImage.empty()){
-            cout << "entered whiletrue loop" << endl;
-            msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", finalCameraImage).toImageMsg(); //bgr8 is blue green red with 8UC3
-            if ((msg != nullptr) && (finalimage_publisher!= NULL)){
-                finalimage_publisher.publish(msg);
-                cout << "final image published.." << endl;
-            }   
-            else{
-             cout << "Image publishing condition failed for this iteration." << endl;   
+                    //cout << "tp1.x + i, should be < 0 : " << tp1.x + i << endl;
+                    //~5000 rows and 10000 columns available in final image.
+                    Aitt = finalCameraImage.ptr<cv::Vec3b>((image_x_cols) + tp1.x + i);
+                    //cout << "finalCameraImage.size : " << finalCameraImage.size() << endl;
+                }
+                Bitt = temp_warped_img.ptr<cv::Vec3b>(i);
+                //matrix starts from 0 - which is the top left.
+                for(int j = 0; j < cols; j++){
+                    if (tp1.y + j >= 0){
+                        //cout << "tp1.y + j : " << tp1.y + j << endl;
+                        Aitt[tp1.y + j] = Bitt[j];
+                    }
+                    else{
+                        Aitt[(image_y_rows) + tp1.y + j] = Bitt[j]; //because we have an width:height ratio of 2:1 
+                    }    
+                }                
+            }*/
+            
+            
+            //Mat ROI_finalImage2 = finalCameraImage(Range(100,110),  Range(100,110));
+            //cout << "ROI_finalcameraImage2 is : " <<  endl << ROI_finalImage2 <<  endl; 
+            
+            /*cv::Size s2 = temp_warped_img.size();
+            int rows2 = s2.height;
+            int cols2 = s2.width;*/
+            //cout <<  "Size of temp_warped_img Mat is : " <<  rows2 <<  ", " <<  cols2 <<  endl;
+            //cout <<  "size variable of temp_warped_img Mat is given as " <<  s2 <<  endl;
+            //Mat ROI_final_image = finalCameraImage(Range(tp1.x,tp1.y),  Range(tp1.x + 1,tp1.y + 1));
+            //cout << "ROI_final_image is : " <<  endl << ROI_final_image <<  endl; 
+            /*namedWindow("cam1_inputImage_cameraCallBackdistorted_insidewarper", WINDOW_AUTOSIZE);
+            imshow("cam1_distorted_insidewarper", cam_data);
+            namedWindow("cam1_undistorted", WINDOW_AUTOSIZE);
+            imshow("cam1_undistorted", undistorted_cam_data);
+            namedWindow("warpedImage", WINDOW_AUTOSIZE);
+            imshow("warpedImage", temp_warped_img);*/
+    //        namedWindow("ROI_temp", WINDOW_AUTOSIZE);
+    //        imshow("ROI_temp", ROI_temp);
+            /*namedWindow("finalImage", 0); //only windows without autosize can be resized
+            imshow("finalImage", finalCameraImage);
+            resizeWindow("finalImage", 500, 1000);
+            waitKey();*/
+            if (!finalCameraImage.empty()){
+                cout << "entered whiletrue loop" << endl;
+                msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", finalCameraImage).toImageMsg(); //bgr8 is blue green red with 8UC3
+                if ((msg != nullptr) && (finalimage_publisher!= NULL)){
+                    finalimage_publisher.publish(msg);
+                    cout << "final image published.." << endl;
+                }   
+                else{
+                cout << "Image publishing condition failed for this iteration." << endl;   
+                }
             }
+            else{
+                cout << "final image is empty.." << endl;
+            }
+            cout << "---------------------processing done-------------------------------------------------" << this->camera_name << endl;
         }
-        else{
-            cout << "final image is empty.." << endl;
-        }
-        cout << "---------------------processing done-------------------------------------------------" << this->camera_name << endl;
-
     }
     else{
      cout << "undistort has empty data." << endl;   
@@ -412,7 +414,7 @@ void cameraSetup::setCameraTransformDelay(double_t delay){
 }
 
 //Note : This will cause an issue if we parallelise the code. We will have to synchronize it around the finalImage object because all camera objects will be updating the final image, if so.
-cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, sensor_msgs::ImagePtr& finalImageMsg, image_transport::Publisher& finalImagepub, int finalimage_rows, int finalimage_cols)
+cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, sensor_msgs::ImagePtr& finalImageMsg, image_transport::Publisher& finalImagepub, std::mutex& sharedInpMutex, int finalimage_rows, int finalimage_cols)
 :camera_name(name),camera_height(-1), camera_width(-1){
     rotation_matrix = cv::Mat(3, 3, CV_32F);
     //cout << "cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, int finalimage_rows, int finalimage_cols) entered" << endl;
@@ -420,9 +422,15 @@ cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, 
     camerainfo_Subscriber = handle.subscribe("/" + camera_name + "/camera_info",10, &cameraSetup::info_cameraCallBack, this);
     //Creates subscriber for Camera Image
     inputImage_Subscriber = handle.subscribe("/" + camera_name + "/image_raw",10, &cameraSetup::inputImage_cameraCallBack, this);
-    finalCameraImage = finalImage;
-    msg = finalImageMsg;
-    finalimage_publisher = finalImagepub;
+    sharedMutex = sharedInpMutex;
+    //3 shared variables which form the invariant
+    {
+        const std::lock_guard<std::mutex> lock(sharedMutex);
+        finalCameraImage = finalImage;
+        msg = finalImageMsg;
+        finalimage_publisher = finalImagepub;
+
+    }
     //<check> - need to change the below to receive from a rostopic later or from a server. Will see.
     /*if (camera_name == "pano_1"){
         setCameraParameters((Mat_<float>(3,3) << 1884.288597944681, 0, 1281.298355259871, 0, 1584.885477343124, 636.5814917534733, 0, 0, 1), (Mat_<float>(1,5) << -0.4173570405287141, 0.1493134654766953, 0.008037288266852087, -0.0007342658995463636, 0), (Mat_<float>(3,3) << 1,0,0,0,1,0,0,0,1));
