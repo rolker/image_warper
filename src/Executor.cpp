@@ -22,7 +22,6 @@ image_transport::Publisher finalimage_publisher;
 vector<cameraSetup*> cameraVector; //<check>
 vector<string> camera_names;
 vector<std::thread> camera_threads;
-
 std::mutex sharedMutex;
 
 //will this cause issue if we multithread it?
@@ -36,7 +35,8 @@ void dynamicConfigurecallback(image_warper::image_warperConfig &config, uint32_t
 // Define a function/ lambda expression for the threads and callable.
 void callableFunc(std::string name, ros::NodeHandle& handle, cv::Mat& image, sensor_msgs::ImagePtr& message, image_transport::Publisher& publisher_obj, std::mutex& mutex_obj, int y_rows, int x_cols) { 
         //we get a pointer back. do we need new -> we do. destructor will take care of the delete operation.
-        cameraVector.push_back(new cameraSetup(name, handle, image, message, publisher_obj, mutex_obj, y_rows, x_cols));              
+        //cout << "thread called : " << endl;
+        cameraVector.push_back(new cameraSetup(name, handle, image, message, publisher_obj, mutex_obj, y_rows, x_cols));  
 }
     
 //bool videoStreamCallbackForVR(){
@@ -59,11 +59,11 @@ int main(int argc, char** argv){
     ros::NodeHandle nodeHandler2_pub;
     image_transport::ImageTransport imgTransp(nodeHandler2_pub);
     finalimage_publisher = imgTransp.advertise("finalimage/image_raw", 1);
-    
-        
+    //IMportant, we have to pass the callable as &callablename, ekse tuple error is coming.
+    std::thread thread1(&callableFunc,"thread1", std::ref(nodeHandler1), std::ref(finalImage), std::ref(msg), std::ref(finalimage_publisher), std::ref(sharedMutex), CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS);
     for (int i = 0; i < NO_OF_CAMERAS; i++){
         //<check> do from here - undefined ref, need to modify config files.
-        camera_threads.push_back(std::thread(callableFunc,camera_names[i], nodeHandler1, finalImage, msg, finalimage_publisher, sharedMutex, CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS));
+        //camera_threads.push_back(std::thread(callableFunc,camera_names[i], nodeHandler1, finalImage, msg, finalimage_publisher, sharedMutex, CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS));
         
     }
     //subscribers for camera image data
@@ -75,8 +75,8 @@ int main(int argc, char** argv){
     //ros::init(argc,argv, "final_image_publisher1");
     //ros::ServiceServer nodeHandler2_pub.advertiseService(const string& service, videoStreamCallbackForVR);
     ros::Rate loops_per_sec(50); //setting no of loops per second. It is the Hz value.
-    cout << "camera 1 name is : " << cameraVector[0]->camera_name << endl;
-    cout << "camera 2 name is : " << cameraVector[1]->camera_name << endl;
+    //cout << "camera 1 name is : " << cameraVector[0]->camera_name << endl;
+    //cout << "camera 2 name is : " << cameraVector[1]->camera_name << endl;
     // rate of subscriber is actually the rate at which the publisher publishes.
     
     f = boost::bind(&dynamicConfigurecallback,  _1, _2);
