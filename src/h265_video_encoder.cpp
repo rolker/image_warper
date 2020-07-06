@@ -8,6 +8,7 @@
 
 int main(int argc, char ** argv)
 {
+    
   ros::init(argc, argv, "h265_video_encoder_node");
   ros::NodeHandle node_handle_video_encoder;  
   ros::Publisher publisher_video_encoder;
@@ -25,7 +26,5 @@ int main(int argc, char ** argv)
   // run the node
   //
   ros::spin();
-  AWS_LOG_INFO(__func__, "Shutting down H264 Video Node...");
-  Aws::Utils::Logging::ShutdownAWSLogging();
-  return AWS_ERR_OK;
+  
 }
