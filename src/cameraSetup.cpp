@@ -7,7 +7,7 @@
 
 using namespace std;
 using namespace cv;
-
+std::mutex cameraSetup::sharedMutex;
 
 
 bool cameraSetup::checkCameraResolution() {
@@ -128,7 +128,7 @@ void cameraSetup::process_3D_Map() {
         Vec3b* Bitt;
         //no need for delete as I am not using 'new'.
         {//using same mutex for the invariant.
-            const std::lock_guard<std::mutex> lock(sharedMutex);
+            std::lock_guard<std::mutex> lock(sharedMutex);
             //<check>have to add a check if its black cell or not.
             for(int i = 0; i < rows; i++)
             {   
@@ -414,22 +414,26 @@ void cameraSetup::setCameraTransformDelay(double_t delay){
 }
 
 //Note : This will cause an issue if we parallelise the code. We will have to synchronize it around the finalImage object because all camera objects will be updating the final image, if so.
-cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, sensor_msgs::ImagePtr& finalImageMsg, image_transport::Publisher& finalImagepub, std::mutex& sharedInpMutex, int finalimage_rows, int finalimage_cols)
-:camera_name(name),camera_height(-1), camera_width(-1), sharedMutex(sharedInpMutex){
+cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, sensor_msgs::ImagePtr& finalImageMsg, image_transport::Publisher& finalImagepub, shared_ptr<mutex> sharedInpMutex, int finalimage_rows, int finalimage_cols)
+:camera_name(name),camera_height(-1), camera_width(-1){
     rotation_matrix = cv::Mat(3, 3, CV_32F);
-    //cout << "cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, int finalimage_rows, int finalimage_cols) entered" << endl;
+    cout << "cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, int finalimage_rows, int finalimage_cols) entered" << endl;
     //Creates subscriber for Camera Info
     camerainfo_Subscriber = handle.subscribe("/" + camera_name + "/camera_info",10, &cameraSetup::info_cameraCallBack, this);
     //Creates subscriber for Camera Image
     inputImage_Subscriber = handle.subscribe("/" + camera_name + "/image_raw",10, &cameraSetup::inputImage_cameraCallBack, this);
+    
+    
     //3 shared variables which form the invariant
     {
-        const std::lock_guard<std::mutex> lock(sharedMutex);
+        cout << "reached here" << endl;
+        std::lock_guard<std::mutex> lock(sharedMutex);
         finalCameraImage = finalImage;
         msg = finalImageMsg;
         finalimage_publisher = finalImagepub;
-
+        cout << "reached here after lock completes" << endl;
     }
+    
     //<check> - need to change the below to receive from a rostopic later or from a server. Will see.
     /*if (camera_name == "pano_1"){
         setCameraParameters((Mat_<float>(3,3) << 1884.288597944681, 0, 1281.298355259871, 0, 1584.885477343124, 636.5814917534733, 0, 0, 1), (Mat_<float>(1,5) << -0.4173570405287141, 0.1493134654766953, 0.008037288266852087, -0.0007342658995463636, 0), (Mat_<float>(3,3) << 1,0,0,0,1,0,0,0,1));
