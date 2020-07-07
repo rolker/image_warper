@@ -6,6 +6,7 @@
 #include "cameraSetup.h"
 #include <thread>
 #include <mutex>
+#include <ros/callback_queue.h>
 
 using namespace std;
 using namespace cv;
@@ -22,7 +23,7 @@ image_transport::Publisher finalimage_publisher;
 vector<cameraSetup*> cameraVector; //<check>
 vector<string> camera_names;
 vector<thread> camera_threads;
-shared_ptr<mutex> sharedMutexPtr = make_shared<mutex>();
+shared_ptr<mutex> sharedMutexPtr = make_shared<mutex>(); //remove this.
 
 //will this cause issue if we multithread it?
 void dynamicConfigurecallback(image_warper::image_warperConfig &config, uint32_t level) {
@@ -51,12 +52,18 @@ int main(int argc, char** argv){
     //<check how to remove the memory leak> - write a destructor inside camerasetup but also we need a delete.
     ros::init(argc, argv, "imageStabilize_360VR");  //node name.
     ros::NodeHandle nodeHandler1;
+    ros::CallbackQueue my_callback_queue; //seperate callback queue for the cameras, instead of using the global callback queue for ros nodes.
+
+    nodeHandler1.setCallbackQueue(&my_callback_queue);
+    my_callback_queue.callAvailable(ros::WallDuration());
+
     dynamic_reconfigure::Server<image_warper::image_warperConfig> dynamic_config_server;
     //declare callback variable
     dynamic_reconfigure::Server<image_warper::image_warperConfig>::CallbackType f;
     //define callback. we dont need 'this' because we are not writing it as a class.
     
     ros::NodeHandle nodeHandler2_pub;
+    //image_transport::ImageTransport imgTransp(nodeHandler2_pub);
     image_transport::ImageTransport imgTransp(nodeHandler2_pub);
     finalimage_publisher = imgTransp.advertise("finalimage/image_raw", 1);
     //IMportant, we have to pass the callable as &callablename, ekse tuple error is coming.
@@ -82,7 +89,12 @@ int main(int argc, char** argv){
     
     f = boost::bind(&dynamicConfigurecallback,  _1, _2);
     dynamic_config_server.setCallback(f);
-    ros::MultiThreadedSpinner spinner(NO_OF_CAMERAS);
+    //ros::MultiThreadedSpinner spinner(NO_OF_CAMERAS);
+    //ros::MultiThreadedSpinner spinner(0);
+    ros::MultiThreadedSpinner spinner(0);
+    spinner.spin(&my_callback_queue);
+    //below code has been shifted to within cameraSetup
+
     //while(ros::ok()){
 //         if (!finalImage.empty()){
 //             cout << "entered whiletrue loop" << endl;
@@ -100,7 +112,7 @@ int main(int argc, char** argv){
 //         }
         //ros::spinOnce();
         
-        spinner.spin();
+        //spinner.spin();
     //}
     
 }
