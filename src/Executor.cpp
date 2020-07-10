@@ -25,7 +25,8 @@ vector<string> camera_names;
 vector<thread> camera_threads;
 shared_ptr<mutex> sharedMutexPtr = make_shared<mutex>(); //remove this.
 
-//will this cause issue if we multithread it?
+//This causes issue if we use MultiThreadedSpinner as the main thread will be blocked. So use AsyncSpinner. AsyncSpinner also has an issue that it will process the dynamic callback only when 
+
 void dynamicConfigurecallback(image_warper::image_warperConfig &config, uint32_t level) {
     for (int i = 0; i < NO_OF_CAMERAS; i++){
         cameraVector[i]->setCameraTransformDelay(config.transformation_delay);
@@ -53,8 +54,7 @@ int main(int argc, char** argv){
     ros::init(argc, argv, "imageStabilize_360VR");  //node name.
     ros::NodeHandle nodeHandler1;
     ros::CallbackQueue my_callback_queue; //seperate callback queue for the cameras, instead of using the global callback queue for ros nodes.
-
-    nodeHandler1.setCallbackQueue(&my_callback_queue);
+    //nodeHandler1.setCallbackQueue(&my_callback_queue);
     my_callback_queue.callAvailable(ros::WallDuration());
 
     dynamic_reconfigure::Server<image_warper::image_warperConfig> dynamic_config_server;
@@ -64,7 +64,7 @@ int main(int argc, char** argv){
     
     ros::NodeHandle nodeHandler2_pub;
     //image_transport::ImageTransport imgTransp(nodeHandler2_pub);
-    image_transport::ImageTransport imgTransp(nodeHandler2_pub);
+    image_transport::ImageTransport imgTransp(nodeHandler1);
     finalimage_publisher = imgTransp.advertise("finalimage/image_raw", 1);
     //IMportant, we have to pass the callable as &callablename, ekse tuple error is coming.
     //std::thread thread1(&callableFunc,"thread1", std::ref(nodeHandler1), std::ref(finalImage), std::ref(msg), std::ref(finalimage_publisher), sharedMutexPtr, CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS);
@@ -91,10 +91,13 @@ int main(int argc, char** argv){
     dynamic_config_server.setCallback(f);
     //ros::MultiThreadedSpinner spinner(NO_OF_CAMERAS);
     //ros::MultiThreadedSpinner spinner(0);
-    ros::MultiThreadedSpinner spinner(0);
-    spinner.spin(&my_callback_queue);
-    //below code has been shifted to within cameraSetup
+    //spinner.spin(&my_callback_queue);
+    ros::AsyncSpinner async_spinner(0);
+    async_spinner.start();
+    cout << "reached here" << endl;
+    ros::waitForShutdown(); //AsyncSpinner stops when node shuts down.
 
+    //below final image publisher code has been shifted to within cameraSetup
     //while(ros::ok()){
 //         if (!finalImage.empty()){
 //             cout << "entered whiletrue loop" << endl;
