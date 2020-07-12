@@ -26,12 +26,57 @@ vector<thread> camera_threads;
 shared_ptr<mutex> sharedMutexPtr = make_shared<mutex>(); //remove this.
 
 //This causes issue if we use MultiThreadedSpinner as the main thread will be blocked. So use AsyncSpinner. AsyncSpinner also has an issue that it will process the dynamic callback only when 
-
+//note : if we have more than 6 cameras, we need to add an entry to the cfg file.
 void dynamicConfigurecallback(image_warper::image_warperConfig &config, uint32_t level) {
-    for (int i = 0; i < NO_OF_CAMERAS; i++){
-        cameraVector[i]->setCameraTransformDelay(config.transformation_delay);
-        cout << "value of dyn param has been set to : " << config.transformation_delay << ", for camera " << cameraVector[i]->camera_name << endl;
+        double_t delay;
+    for (int i=0; i < NO_OF_CAMERAS; i++){
+        switch(i){
+            case(0) :
+            {
+                cout << "case0 reached" << endl;
+                delay = config.transformation_delay_cam_1;  
+                break;
+            }
+            case(1) :
+            {
+                cout << "case1 reached" << endl;
+                delay = config.transformation_delay_cam_2;
+                break;
+            }
+            case(2) :
+            {    
+                cout << "case2 reached" << endl;
+                delay = config.transformation_delay_cam_3;
+                break;
+            }
+            case(3) :
+            {    
+                cout << "case3 reached" << endl;
+                delay = config.transformation_delay_cam_4;
+                break;
+            }
+            case(4) :
+            {    
+                cout << "case4 reached" << endl;
+                delay = config.transformation_delay_cam_5;
+                break;
+            }
+            case(5) :
+            {    
+                cout << "case5 reached" << endl;
+                delay = config.transformation_delay_cam_6;
+                break;
+            }
+            default :
+            {    
+                cout << "default case reached" << endl;
+                delay = config.transformation_delay_cam_default;
+            }
+        }
+        cameraVector[i]->setCameraTransformDelay(delay);
+        cout << "value of dyn param has been set to : " << delay << ", for camera " << cameraVector[i]->camera_name << endl;
     }
+
 }
 
 // Define a function/ lambda expression for the threads and callable.
@@ -53,7 +98,7 @@ int main(int argc, char** argv){
     //<check how to remove the memory leak> - write a destructor inside camerasetup but also we need a delete.
     ros::init(argc, argv, "imageStabilize_360VR");  //node name.
     ros::NodeHandle nodeHandler1;
-    ros::CallbackQueue my_callback_queue; //seperate callback queue for the cameras, instead of using the global callback queue for ros nodes.
+    ros::CallbackQueue my_callback_queue; //seperate callback queue for the cameras, instead of using the global callback queue for ros nodes. - this is not working for the dynamic reconfigure callback, so I have reverted to the global Q.
     //nodeHandler1.setCallbackQueue(&my_callback_queue);
     my_callback_queue.callAvailable(ros::WallDuration());
 
@@ -62,7 +107,7 @@ int main(int argc, char** argv){
     dynamic_reconfigure::Server<image_warper::image_warperConfig>::CallbackType f;
     //define callback. we dont need 'this' because we are not writing it as a class.
     
-    ros::NodeHandle nodeHandler2_pub;
+    //ros::NodeHandle nodeHandler2_pub;
     //image_transport::ImageTransport imgTransp(nodeHandler2_pub);
     image_transport::ImageTransport imgTransp(nodeHandler1);
     finalimage_publisher = imgTransp.advertise("finalimage/image_raw", 1);

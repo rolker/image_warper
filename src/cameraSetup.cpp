@@ -262,6 +262,7 @@ void cameraSetup::process_3D_Map() {
     
 }
 
+//Note : There is a CameraSubscriber in ROS, which I did not initially know about, which can be used for this, where we do not need 2 callbacks, instead we can use a single callback for it.
 
 void cameraSetup::info_cameraCallBack(const sensor_msgs::CameraInfo::ConstPtr& inpMsg){
     //cout << "info_cameraCallBack reached." << endl;
