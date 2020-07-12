@@ -27,7 +27,7 @@ shared_ptr<mutex> sharedMutexPtr = make_shared<mutex>(); //remove this.
 
 //This causes issue if we use MultiThreadedSpinner as the main thread will be blocked. So use AsyncSpinner. AsyncSpinner also has an issue that it will process the dynamic callback only when 
 //note : if we have more than 6 cameras, we need to add an entry to the cfg file.
-void dynamicConfigurecallback(image_warper::image_warperConfig &config, uint32_t level) {
+void dynamicConfigurecallback(image_warper::cameraDelayConfig &config, uint32_t level) {
         double_t delay;
     for (int i=0; i < NO_OF_CAMERAS; i++){
         switch(i){
@@ -102,9 +102,9 @@ int main(int argc, char** argv){
     //nodeHandler1.setCallbackQueue(&my_callback_queue);
     my_callback_queue.callAvailable(ros::WallDuration());
 
-    dynamic_reconfigure::Server<image_warper::image_warperConfig> dynamic_config_server;
+    dynamic_reconfigure::Server<image_warper::cameraDelayConfig> dynamic_config_server;
     //declare callback variable
-    dynamic_reconfigure::Server<image_warper::image_warperConfig>::CallbackType f;
+    dynamic_reconfigure::Server<image_warper::cameraDelayConfig>::CallbackType f;
     //define callback. we dont need 'this' because we are not writing it as a class.
     
     //ros::NodeHandle nodeHandler2_pub;

@@ -18,15 +18,14 @@
 #include <tf2/LinearMath/Matrix3x3.h>                       //for converting quartenion to rotation matrix
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>            //to convert from TransformStamped.rotation to Quartenion
 #include <opencv2/calib3d.hpp>                              //for creating a optimal camera matrix
-
-//below source : http://wiki.ros.org/dynamic_reconfigure/Tutorials/HowToWriteYourFirstCfgFile
 //for dynamic parameterization
+//below source : http://wiki.ros.org/dynamic_reconfigure/Tutorials/HowToWriteYourFirstCfgFile
 #include "dynamic_reconfigure/server.h"
 //The below config header file will be generated and saved.
-#include "image_warper/image_warperConfig.h"
+#include "image_warper/cameraDelayConfig.h"
 #include "boost/bind.hpp"
 #include <thread>
-#include <mutex>
+#include <mutex>  //for multithreading locks.
 
 //#include <Eigen/Geometry>                                   //for quartenion to rotation matrix
 //#include <tf2/LinearMath/Transform.h>                       //to convert from TransformStamped to Quartenion
