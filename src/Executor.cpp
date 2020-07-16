@@ -29,6 +29,7 @@ shared_ptr<mutex> sharedMutexPtr = make_shared<mutex>(); //remove this.
 //note : if we have more than 6 cameras, we need to add an entry to the cfg file.
 void dynamicConfigurecallback(image_warper::cameraDelayConfig &config, uint32_t level) {
         double_t delay;
+    int16_t pixels = config.blend_parameter_in_pixels;
     for (int i=0; i < NO_OF_CAMERAS; i++){
         switch(i){
             case(0) :
@@ -75,9 +76,21 @@ void dynamicConfigurecallback(image_warper::cameraDelayConfig &config, uint32_t 
         }
         cameraVector[i]->setCameraTransformDelay(delay);
         cout << "value of dyn param has been set to : " << delay << ", for camera " << cameraVector[i]->camera_name << endl;
+        cameraVector[i]->setCameraBlendAreaInPixels(pixels);
+        cout << "value of blend pixels has been set to : " << pixels << ", for camera " << cameraVector[i]->camera_name << endl;
     }
-
 }
+
+// //setting blend number of pixels
+// void callbackBlend(image_warper::cameraDelayConfig &config, uint32_t level) {
+//     int16_t pixels = config.blend_parameter_in_pixels;
+//     for (int i=0; i < NO_OF_CAMERAS; i++){
+//         cameraVector[i]->setCameraBlendAreaInPixels(pixels);
+//         cout << "value of blend pixels has been set to : " << pixels << ", for camera " << cameraVector[i]->camera_name << endl;
+//     }    
+// }
+
+
 
 // Define a function/ lambda expression for the threads and callable.
 void callableFunc(std::string name, ros::NodeHandle& handle, cv::Mat& image, sensor_msgs::ImagePtr& message, image_transport::Publisher& publisher_obj, shared_ptr<mutex> ptrSharedMutex, int y_rows, int x_cols) { 
@@ -101,10 +114,13 @@ int main(int argc, char** argv){
     ros::CallbackQueue my_callback_queue; //seperate callback queue for the cameras, instead of using the global callback queue for ros nodes. - this is not working for the dynamic reconfigure callback, so I have reverted to the global Q.
     //nodeHandler1.setCallbackQueue(&my_callback_queue);
     my_callback_queue.callAvailable(ros::WallDuration());
-
+    
+    //Dynamic server declaration
     dynamic_reconfigure::Server<image_warper::cameraDelayConfig> dynamic_config_server;
-    //declare callback variable
+    //dynamic_reconfigure::Server<image_warper::cameraDelayConfig> server_blend;
+    //Declare callback variable
     dynamic_reconfigure::Server<image_warper::cameraDelayConfig>::CallbackType f;
+    //dynamic_reconfigure::Server<image_warper::cameraDelayConfig>::CallbackType f_blend;
     //define callback. we dont need 'this' because we are not writing it as a class.
     
     //ros::NodeHandle nodeHandler2_pub;
@@ -133,7 +149,9 @@ int main(int argc, char** argv){
     // rate of subscriber is actually the rate at which the publisher publishes.
     
     f = boost::bind(&dynamicConfigurecallback,  _1, _2);
+    //f_blend = boost::bind(&callbackBlend,  _1, _2);
     dynamic_config_server.setCallback(f);
+    //server_blend.setCallback(f_blend);
     //ros::MultiThreadedSpinner spinner(NO_OF_CAMERAS);
     //ros::MultiThreadedSpinner spinner(0);
     //spinner.spin(&my_callback_queue);

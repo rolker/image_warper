@@ -40,6 +40,7 @@ public:
     cameraSetup(std::string, ros::NodeHandle&, cv::Mat&, sensor_msgs::ImagePtr&, image_transport::Publisher&, std::shared_ptr<std::mutex>, int, int);
     ~cameraSetup();
     void setCameraTransformDelay(double_t delay);
+    void setCameraBlendAreaInPixels(int16_t pixels);
 
     std::string camera_name; //name is without the first forward slash in the topic, eg: pano_1
     int camera_height; //camera resolution height
@@ -70,6 +71,7 @@ private:
     ros::Subscriber tf_Subscriber;
     ros::Subscriber tf_static_Subscriber;    
     double_t camera_transform_delay; //setting it as double_t bcos in cfg file, we do the same.
+    int16_t pixels_to_blend; //setting it as int16_t bcos in cfg file, we do the same as int_t.
     cv::Mat dummy_white_Mat;
     cv::Mat undistort_dummy_white_Mat;
     

@@ -240,11 +240,11 @@ void cameraSetup::process_3D_Map() {
             resizeWindow("finalImage", 500, 1000);
             waitKey();*/
             if (!finalCameraImage.empty()){
-                cout << "entered whiletrue loop" << endl;
+                //cout << "entered whiletrue loop" << endl;
                 msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", finalCameraImage).toImageMsg(); //bgr8 is blue green red with 8UC3
                 if ((msg != nullptr) && (finalimage_publisher!= NULL)){
                     finalimage_publisher.publish(msg);
-                    cout << "final image published.." << endl;
+                    //cout << "final image published.." << endl;
                 }   
                 else{
                 cout << "Image publishing condition failed for this iteration." << endl;   
@@ -253,7 +253,7 @@ void cameraSetup::process_3D_Map() {
             else{
                 cout << "final image is empty.." << endl;
             }
-            cout << "---------------------processing done-------------------------------------------------" << this->camera_name << endl;
+            //cout << "---------------------processing done-------------------------------------------------" << this->camera_name << endl;
         }
     }
     else{
@@ -272,8 +272,8 @@ void cameraSetup::info_cameraCallBack(const sensor_msgs::CameraInfo::ConstPtr& i
 }
 
 void cameraSetup::inputImage_cameraCallBack(const sensor_msgs::Image::ConstPtr& inpMsg){
-    cout << "inputImage_cameraCallBack reached." << endl;
-    cout <<  camera_name << endl;
+    //cout << "inputImage_cameraCallBack reached." << endl;
+    //cout <<  camera_name << endl;
     // First convert ROS image message to Open CV Mat using CVbridge. - if we need to modify the data,  we need to copy this. I am only referencing the original data here to prevent usage of too much memory.
     cv_bridge::CvImageConstPtr cv_cam_ptr; 
     try{
@@ -412,6 +412,11 @@ cameraSetup::cameraSetup(string name, ros::NodeHandle& handle)
 
 void cameraSetup::setCameraTransformDelay(double_t delay){
     camera_transform_delay = delay;
+}
+
+
+void cameraSetup::setCameraBlendAreaInPixels(int16_t pixels){
+    pixels_to_blend = pixels;
 }
 
 //Note : This will cause an issue if we parallelise the code. We will have to synchronize it around the finalImage object because all camera objects will be updating the final image, if so.
