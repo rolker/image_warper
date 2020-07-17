@@ -126,6 +126,13 @@ void cameraSetup::process_3D_Map() {
         
         Vec3b* Aitt;
         Vec3b* Bitt;
+        //the 4 values above which values should be cyclic.
+        
+        tp1.x
+        int col_left = 0;
+        int col_rt =  (image_x_cols - 1) ;
+        int row_down = 0;
+        int row_up = image_y_rows - 1;
         //no need for delete as I am not using 'new'.
         {//using same mutex for the invariant.
             std::lock_guard<std::mutex> lock(sharedMutex);
