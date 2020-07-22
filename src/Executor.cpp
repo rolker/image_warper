@@ -7,6 +7,7 @@
 #include <thread>
 #include <mutex>
 #include <ros/callback_queue.h>
+//#include "videoio.hpp" //for testing reading from video files, this can be removed later.
 
 using namespace std;
 using namespace cv;
@@ -23,7 +24,7 @@ image_transport::Publisher finalimage_publisher;
 vector<cameraSetup*> cameraVector; //<check>
 vector<string> camera_names;
 vector<thread> camera_threads;
-shared_ptr<mutex> sharedMutexPtr = make_shared<mutex>(); //remove this.
+shared_ptr<mutex> sharedMutexPtr = make_shared<mutex>(); //remove this, will have to change the definition of a function as well.
 
 //This causes issue if we use MultiThreadedSpinner as the main thread will be blocked. So use AsyncSpinner. AsyncSpinner also has an issue that it will process the dynamic callback only when 
 //note : if we have more than 6 cameras, we need to add an entry to the cfg file.
@@ -104,13 +105,44 @@ void callableFunc(std::string name, ros::NodeHandle& handle, cv::Mat& image, sen
 
 
 int main(int argc, char** argv){
+    
+    /*Below code is to try open a video file and convert to a ROS topic.
+    
+    // V Imp : change the value in constructor to -1 and -1 for width and height.
+    vector<VideoCapture*> captureVector;
+    for (int i = 0; i < NO_OF_CAMERAS; i++){
+        captureVector.push_back(new VideoCapture("/home/ubuntu/data/" + to_string(i+1) + "_2020-07-07_14-10-25.mp4")); // open file
+        if(!captureVector[i]->isOpened()){  // check if we succeeded
+            cout << "not open 1" << endl;
+        return -1;
+        }
+    }
+    ros::NodeHandle nodeHandler_inputVideo;
+    image_transport::ImageTransport inpVideoTransport(nodeHandler_inputVideo);
+    CameraPublisher cam(inpVideoTransport, nodeHandler_inputVideo, "camera")
+    */
+/*    Mat edges;
+    namedWindow("edges",1);
+    while (true){
+        Mat frame;
+        *captureVector[4] >> frame; // get a new frame from camera
+        imshow("edges", frame);
+        if(waitKey(30) >= 0) break;
+    }
+*/
+
+    /* Original code starts here
+    */
+        
     for (int i = 0; i < NO_OF_CAMERAS; i++){
         camera_names.push_back("pano_" + to_string(i+1));
         cout << "camera names are : " << camera_names[i] << endl;
     }
+    
     //<check how to remove the memory leak> - write a destructor inside camerasetup but also we need a delete.
     ros::init(argc, argv, "imageStabilize_360VR");  //node name.
     ros::NodeHandle nodeHandler1;
+    //not using a new callbackQ anymore cos it doesnt pick the dynamic reconfigure callback.
     ros::CallbackQueue my_callback_queue; //seperate callback queue for the cameras, instead of using the global callback queue for ros nodes. - this is not working for the dynamic reconfigure callback, so I have reverted to the global Q.
     //nodeHandler1.setCallbackQueue(&my_callback_queue);
     my_callback_queue.callAvailable(ros::WallDuration());

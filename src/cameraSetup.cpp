@@ -128,7 +128,7 @@ void cameraSetup::process_3D_Map() {
         Vec3b* Bitt;
         //the 4 values above which values should be cyclic.
         
-        tp1.x
+        //tp1.x
         int col_left = 0;
         int col_rt =  (image_x_cols - 1) ;
         int row_down = 0;
@@ -275,7 +275,7 @@ void cameraSetup::info_cameraCallBack(const sensor_msgs::CameraInfo::ConstPtr& i
     //cout << "info_cameraCallBack reached." << endl;
     camera_height = inpMsg->height;
     camera_width = inpMsg->width;
-    //cout <<  camera_name << ", " <<  camera_height << ", " <<  camera_width <<  endl;   
+    cout <<  camera_name << ", " <<  camera_height << ", " <<  camera_width <<  endl;   
 }
 
 void cameraSetup::inputImage_cameraCallBack(const sensor_msgs::Image::ConstPtr& inpMsg){
@@ -428,9 +428,9 @@ void cameraSetup::setCameraBlendAreaInPixels(int16_t pixels){
 
 //Note : This will cause an issue if we parallelise the code. We will have to synchronize it around the finalImage object because all camera objects will be updating the final image, if so.
 cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, sensor_msgs::ImagePtr& finalImageMsg, image_transport::Publisher& finalImagepub, shared_ptr<mutex> sharedInpMutex, int finalimage_rows, int finalimage_cols)
-:camera_name(name),camera_height(-1), camera_width(-1){
+:camera_name(name),camera_height(1440), camera_width(2560){
     rotation_matrix = cv::Mat(3, 3, CV_32F);
-    cout << "cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, int finalimage_rows, int finalimage_cols) entered" << endl;
+    //cout << "cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, int finalimage_rows, int finalimage_cols) entered" << endl;
     //Creates subscriber for Camera Info
     camerainfo_Subscriber = handle.subscribe("/" + camera_name + "/camera_info",10, &cameraSetup::info_cameraCallBack, this);
     //Creates subscriber for Camera Image
@@ -439,12 +439,12 @@ cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, 
     
     //3 shared variables which form the invariant
     {
-        cout << "reached here" << endl;
+        //cout << "reached here" << endl;
         std::lock_guard<std::mutex> lock(sharedMutex);
         finalCameraImage = finalImage;
         msg = finalImageMsg;
         finalimage_publisher = finalImagepub;
-        cout << "reached here after lock completes" << endl;
+        //cout << "reached here after lock completes" << endl;
     }
     
     //<check> - need to change the below to receive from a rostopic later or from a server. Will see.
