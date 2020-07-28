@@ -28,6 +28,8 @@
 #include <mutex>  //for multithreading locks.
 #include "opencv2/stitching/detail/blenders.hpp" //for blending the images
 #include <opencv2/stitching/detail/util.hpp> //for resultROI used for blending.
+#include <opencv2/core/cvstd.hpp>           //for shared pointers.
+#include <opencv2/imgproc/imgproc.hpp>      //for converting to gray scale.
 
 //#include <Eigen/Geometry>                                   //for quartenion to rotation matrix
 //#include <tf2/LinearMath/Transform.h>                       //to convert from TransformStamped to Quartenion
@@ -76,8 +78,8 @@ private:
     int16_t pixels_to_blend; //setting it as int16_t bcos in cfg file, we do the same as int_t.
     cv::Mat dummy_white_Mat;
     cv::Mat undistort_dummy_white_Mat;
-    int blend_type = Blender::MULTI_BAND; ///Blender::MULTI_BAND or Blender::FEATHER or Blender::NO
-    Ptr<Blender> blender; //pointer for blender as from sample in opencv
+    int blend_type = cv::detail::Blender::MULTI_BAND; ///Blender::MULTI_BAND or Blender::FEATHER or Blender::NO
+    cv::Ptr<cv::detail::Blender> blender; //pointer for blender as from sample in opencv
     
     //Methods declaration
     bool checkCameraResolution();   //checks resolution of the camera if its valid.

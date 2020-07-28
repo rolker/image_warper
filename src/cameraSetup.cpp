@@ -99,7 +99,9 @@ string type2str(int type) {
 
 void cameraSetup::process_3D_Map() {
     //cout << "process_3D_Map reached" << endl;
-    Mat temp_warped_img, mask_warped_img;
+    Mat temp_warped_img, temp_warped_img_s, mask_warped_img, mask_warped_gray_img;
+    Mat finalCameraImage_mask=Mat(finalCameraImage.size(), CV_8UC1, Scalar::all(255));
+    Mat finalCameraImage_s; //for blender feed, we need 16SC3 type.
     cv::detail::SphericalWarper sphWarp1(int(image_x_cols/(2*3.14)));
     //cv::detail::CylindricalWarper cylWarp1(int(image_x_cols/(2*3.14)));
     if (!undistorted_cam_data.empty()){
@@ -110,6 +112,7 @@ void cameraSetup::process_3D_Map() {
         Point tp1 = sphWarp1.warp(undistorted_cam_data, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
         //warping the mask
         sphWarp1.warp(undistort_dummy_white_Mat, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, mask_warped_img);
+        cvtColor(mask_warped_img, mask_warped_gray_img, COLOR_BGR2GRAY);
         //using original camera matrix - Point tp1 = sphWarp1.warp(undistorted_cam_data, camera_intrinsics, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
         //whichever camdata is coming in callback, we need to pass that. Also the rotation matrix corresponding to that camera.
         //Point tp1 = cylWarp1.warp(undistorted_cam_data, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
@@ -152,12 +155,24 @@ void cameraSetup::process_3D_Map() {
             std::lock_guard<std::mutex> lock(sharedMutex);
             
             // new code starts here
-            blend_type = Blender::FEATHER;
-            blender = Blender::createDefault(blend_type, false); //false given for CUDA processing
-            Size dst_sz = resultROI(corners, sizes).size();
+            blend_type = cv::detail::Blender::FEATHER;
+            blender = cv::detail::Blender::createDefault(blend_type, false); //false given for CUDA processing
+            Size dst_sz = cv::detail::resultRoi(corners, sizes).size();
+            //change this to global variable
+            float blend_strength = 5;
             float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
-            
-            
+            //reference : https://docs.opencv.org/3.4/d9/dd8/samples_2cpp_2stitching_detailed_8cpp-example.html#a53
+            cv::detail::FeatherBlender* feather_blender = dynamic_cast<cv::detail::FeatherBlender*>(blender.get());
+            feather_blender->setSharpness(1.f/blend_width);
+            cout << "Feather blender, sharpness: " << feather_blender->sharpness();
+            blender->prepare(corners, sizes);
+            //finalCameraImage_mask - spans entire image
+            temp_warped_img.convertTo(temp_warped_img_s, CV_16S);
+            finalCameraImage.convertTo(finalCameraImage_s, CV_16S);
+            blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[0]);
+            blender->feed(finalCameraImage_s, finalCameraImage_mask, corners[1]);
+            Mat result_mask;
+            blender->blend(finalCameraImage, result_mask);
             //new code ends here
             
             
