@@ -105,7 +105,10 @@ void callableFunc(std::string name, ros::NodeHandle& handle, cv::Mat& image, sen
 
 
 int main(int argc, char** argv){
-    
+    Mat a(2,2,CV_8UC3);
+    cout << a;
+    Mat a2(2,2,CV_8UC3, Scalar(0,0,0));
+    cout << a2;
     /*Below code is to try open a video file and convert to a ROS topic.
     
     // V Imp : change the value in constructor to -1 and -1 for width and height.

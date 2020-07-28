@@ -112,18 +112,20 @@ void cameraSetup::process_3D_Map() {
         Point tp1 = sphWarp1.warp(undistorted_cam_data, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
         //warping the mask
         sphWarp1.warp(undistort_dummy_white_Mat, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, mask_warped_img);
+        //converting to grayscale.
         cvtColor(mask_warped_img, mask_warped_gray_img, COLOR_BGR2GRAY);
         //using original camera matrix - Point tp1 = sphWarp1.warp(undistorted_cam_data, camera_intrinsics, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
         //whichever camdata is coming in callback, we need to pass that. Also the rotation matrix corresponding to that camera.
         //Point tp1 = cylWarp1.warp(undistorted_cam_data, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
-        cout << "point is : " << tp1.x << "," << tp1.y << endl;
+        //cout << "point is : " << tp1.x << "," << tp1.y << endl;
+        
         if (tp1.y < 0){
             ROS_ERROR("Point returned from Spherical Warp has negative y-coordinate: %s", "tp1.y is negative");
             return;
         }
         cv::Size s = temp_warped_img.size();
         int rows = s.height;
-        int cols = s.width;        
+        int cols = s.width;  
         //cout << "point coordinates are : " << tp1 << endl;
         //cout << endl << "warping completed successfully." << endl;
         //<check - the correct image is not populating for cam1_distorted when i put the show window statements here.>
@@ -146,33 +148,67 @@ void cameraSetup::process_3D_Map() {
         
         vector<Point> corners(2); //1 for current camera image and 2 for previous final image
         vector<Size> sizes(2); //1 for current camera image and 2 for previous final image
-        corners[0] = tp1; //corner of image
+        //if (tp1.x < 0){//hack
+        //    tp1.x = 0;   
+        //}
+        //if (tp1.x < 0){//manually changed from neg to 0
+        // tp1.x = 0;   
+        //}
+        corners[0] = tp1;
+//        corners[0] = Point(0,499);; //corner of image
+        cout << "y value corner0 : " << corners[0].y << endl;
         sizes[0] = s; //size of image
-        corners[1] = Point(0,999); //corner of prev final image
+        corners[1] = Point(0,0); //corner of prev final image
+        cout << "y value corner1 : " << corners[1].y << endl;
         sizes[1] = finalCameraImage.size(); //size of prev final image
         //no need for delete as I am not using 'new'.
         {//using same mutex for the invariant.
             std::lock_guard<std::mutex> lock(sharedMutex);
-            
+            s = temp_warped_img.size();
+            rows = s.height;
+            cols = s.width;  
+            cout << camera_name << endl;
+            cout << "image size after warp before blend 2 : " << rows << "," << cols << "*****" << tp1.x << "," << tp1.y << endl;
             // new code starts here
             blend_type = cv::detail::Blender::FEATHER;
+            //blend_type = cv::detail::Blender::MULTI_BAND;
             blender = cv::detail::Blender::createDefault(blend_type, false); //false given for CUDA processing
             Size dst_sz = cv::detail::resultRoi(corners, sizes).size();
             //change this to global variable
             float blend_strength = 5;
             float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
             //reference : https://docs.opencv.org/3.4/d9/dd8/samples_2cpp_2stitching_detailed_8cpp-example.html#a53
-            cv::detail::FeatherBlender* feather_blender = dynamic_cast<cv::detail::FeatherBlender*>(blender.get());
-            feather_blender->setSharpness(1.f/blend_width);
-            cout << "Feather blender, sharpness: " << feather_blender->sharpness();
+            if (blend_type == cv::detail::Blender::FEATHER){
+                cv::detail::FeatherBlender* feather_blender = dynamic_cast<cv::detail::FeatherBlender*>(blender.get());
+                //feather_blender->setSharpness(1.f/blend_width);
+                feather_blender->setSharpness(1000);
+                cout << "Feather blender, sharpness: " << feather_blender->sharpness();                
+            }
+            else if (blend_type == cv::detail::Blender::MULTI_BAND){
+                cv::detail::MultiBandBlender* multiband_blender = dynamic_cast<cv::detail::MultiBandBlender*>(blender.get());
+                multiband_blender-> setNumBands(static_cast<int>(ceil(log(blend_width)/log(2.)) - 1.));
+                cout << camera_name << endl;
+                cout << "Multi-band blender, number of bands: " << multiband_blender->numBands();
+            }
+            else {//this should never be invoked
+             ROS_ERROR("Error : %s", "Blend type is invalid.");
+             return;
+            }
+            
             blender->prepare(corners, sizes);
             //finalCameraImage_mask - spans entire image
             temp_warped_img.convertTo(temp_warped_img_s, CV_16S);
             finalCameraImage.convertTo(finalCameraImage_s, CV_16S);
-            blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[0]);
             blender->feed(finalCameraImage_s, finalCameraImage_mask, corners[1]);
+            blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[0]);
             Mat result_mask;
-            blender->blend(finalCameraImage, result_mask);
+            blender->blend(finalCameraImage_s, result_mask);
+            finalCameraImage_s.convertTo(finalCameraImage, CV_8UC3); //converting back to Unsigned
+            s = temp_warped_img.size();
+            rows = s.height;
+            cols = s.width; 
+//            cout << "image size after warp after blend " << rows << "," << cols << endl;
+            cout << "finalCameraImage : " << finalCameraImage.size().height << "," << finalCameraImage.size().width << endl;
             //new code ends here
             
             
@@ -240,7 +276,8 @@ void cameraSetup::process_3D_Map() {
             waitKey();*/
             if (!finalCameraImage.empty()){
                 //cout << "entered whiletrue loop" << endl;
-                msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", finalCameraImage).toImageMsg(); //bgr8 is blue green red with 8UC3
+                msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", finalCameraImage).toImageMsg(); //bgr8 is blue green red with 8UC3, mono8 for single channel
+                //msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", result_mask).toImageMsg(); //bgr8 is blue green red with 8UC3, mono8 for single channel
                 if ((msg != nullptr) && (finalimage_publisher!= NULL)){
                     finalimage_publisher.publish(msg);
                     //cout << "final image published.." << endl;
