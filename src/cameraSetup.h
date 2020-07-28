@@ -26,6 +26,8 @@
 #include "boost/bind.hpp"
 #include <thread>
 #include <mutex>  //for multithreading locks.
+#include "opencv2/stitching/detail/blenders.hpp" //for blending the images
+#include <opencv2/stitching/detail/util.hpp> //for resultROI used for blending.
 
 //#include <Eigen/Geometry>                                   //for quartenion to rotation matrix
 //#include <tf2/LinearMath/Transform.h>                       //to convert from TransformStamped to Quartenion
@@ -37,7 +39,7 @@ public:
     //cameraSetup();
     //cameraSetup(std::string);
     //cameraSetup(std::string, ros::NodeHandle&); //if we pass same handle, we can reuse same handle for all 6 cameras.
-    cameraSetup(std::string, ros::NodeHandle&, cv::Mat&, sensor_msgs::ImagePtr&, image_transport::Publisher&, std::shared_ptr<std::mutex>, int, int);
+    cameraSetup(std::string, ros::NodeHandle&, cv::Mat&, sensor_msgs::ImagePtr&, image_transport::Publisher&, int, int);
     ~cameraSetup();
     void setCameraTransformDelay(double_t delay);
     void setCameraBlendAreaInPixels(int16_t pixels);
@@ -74,6 +76,8 @@ private:
     int16_t pixels_to_blend; //setting it as int16_t bcos in cfg file, we do the same as int_t.
     cv::Mat dummy_white_Mat;
     cv::Mat undistort_dummy_white_Mat;
+    int blend_type = Blender::MULTI_BAND; ///Blender::MULTI_BAND or Blender::FEATHER or Blender::NO
+    Ptr<Blender> blender; //pointer for blender as from sample in opencv
     
     //Methods declaration
     bool checkCameraResolution();   //checks resolution of the camera if its valid.

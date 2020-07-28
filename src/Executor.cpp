@@ -18,7 +18,7 @@ const int CONST_NO_OF_PIXELS_X_COLS = 1000;
 //<check - how do we get the number of cameras?>
 const int NO_OF_CAMERAS = 5;
 
-Mat finalImage(CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS, CV_8UC3);
+Mat finalImage(CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS, CV_8UC3, Scalar::all(0));
 sensor_msgs::ImagePtr msg;
 image_transport::Publisher finalimage_publisher;
 vector<cameraSetup*> cameraVector; //<check>
@@ -94,10 +94,10 @@ void dynamicConfigurecallback(image_warper::cameraDelayConfig &config, uint32_t 
 
 
 // Define a function/ lambda expression for the threads and callable.
-void callableFunc(std::string name, ros::NodeHandle& handle, cv::Mat& image, sensor_msgs::ImagePtr& message, image_transport::Publisher& publisher_obj, shared_ptr<mutex> ptrSharedMutex, int y_rows, int x_cols) { 
+void callableFunc(std::string name, ros::NodeHandle& handle, cv::Mat& image, sensor_msgs::ImagePtr& message, image_transport::Publisher& publisher_obj, int y_rows, int x_cols) { 
         //we get a pointer back. do we need new -> we do. destructor will take care of the delete operation.
         //cout << "thread called : " << endl;
-        cameraVector.push_back(new cameraSetup(name, handle, image, message, publisher_obj, ptrSharedMutex, y_rows, x_cols));  
+        cameraVector.push_back(new cameraSetup(name, handle, image, message, publisher_obj, y_rows, x_cols));  
 }
     
 //bool videoStreamCallbackForVR(){
@@ -164,7 +164,7 @@ int main(int argc, char** argv){
     for (int i = 0; i < NO_OF_CAMERAS; i++){
         //<check> do from here - undefined ref, need to modify config files.
         //camera_threads.push_back(std::thread(callableFunc,camera_names[i], std::ref(nodeHandler1), std::ref(finalImage), std::ref(msg), std::ref(finalimage_publisher), sharedMutexPtr, CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS));
-        callableFunc(camera_names[i], nodeHandler1, finalImage, msg, finalimage_publisher, sharedMutexPtr, CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS);
+        callableFunc(camera_names[i], nodeHandler1, finalImage, msg, finalimage_publisher, CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS);
         
     }
     //subscribers for camera image data

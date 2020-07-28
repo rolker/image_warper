@@ -98,8 +98,8 @@ string type2str(int type) {
 }
 
 void cameraSetup::process_3D_Map() {
-    //cout << "procenvpss_3D_Map reached" << endl;
-    Mat temp_warped_img;
+    //cout << "process_3D_Map reached" << endl;
+    Mat temp_warped_img, mask_warped_img;
     cv::detail::SphericalWarper sphWarp1(int(image_x_cols/(2*3.14)));
     //cv::detail::CylindricalWarper cylWarp1(int(image_x_cols/(2*3.14)));
     if (!undistorted_cam_data.empty()){
@@ -108,9 +108,16 @@ void cameraSetup::process_3D_Map() {
         //cout << endl << "warping is being done" << endl;
         //Point tp1 is the top left corner of image
         Point tp1 = sphWarp1.warp(undistorted_cam_data, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
+        //warping the mask
+        sphWarp1.warp(undistort_dummy_white_Mat, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, mask_warped_img);
         //using original camera matrix - Point tp1 = sphWarp1.warp(undistorted_cam_data, camera_intrinsics, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
         //whichever camdata is coming in callback, we need to pass that. Also the rotation matrix corresponding to that camera.
         //Point tp1 = cylWarp1.warp(undistorted_cam_data, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
+        cout << "point is : " << tp1.x << "," << tp1.y << endl;
+        if (tp1.y < 0){
+            ROS_ERROR("Point returned from Spherical Warp has negative y-coordinate: %s", "tp1.y is negative");
+            return;
+        }
         cv::Size s = temp_warped_img.size();
         int rows = s.height;
         int cols = s.width;        
@@ -128,14 +135,33 @@ void cameraSetup::process_3D_Map() {
         Vec3b* Bitt;
         //the 4 values above which values should be cyclic.
         
-        //tp1.x
+        //for finding the mask.
         int col_left = 0;
         int col_rt =  (image_x_cols - 1) ;
         int row_down = 0;
         int row_up = image_y_rows - 1;
+        
+        vector<Point> corners(2); //1 for current camera image and 2 for previous final image
+        vector<Size> sizes(2); //1 for current camera image and 2 for previous final image
+        corners[0] = tp1; //corner of image
+        sizes[0] = s; //size of image
+        corners[1] = Point(0,999); //corner of prev final image
+        sizes[1] = finalCameraImage.size(); //size of prev final image
         //no need for delete as I am not using 'new'.
         {//using same mutex for the invariant.
             std::lock_guard<std::mutex> lock(sharedMutex);
+            
+            // new code starts here
+            blend_type = Blender::FEATHER;
+            blender = Blender::createDefault(blend_type, false); //false given for CUDA processing
+            Size dst_sz = resultROI(corners, sizes).size();
+            float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
+            
+            
+            //new code ends here
+            
+            
+            /*current working code starts here
             //<check>have to add a check if its black cell or not.
             for(int i = 0; i < rows; i++)
             {   
@@ -152,33 +178,7 @@ void cameraSetup::process_3D_Map() {
                     //cout << "finalCameraImage.size : " << finalCameraImage.size() << endl;
                 }
                 Bitt = temp_warped_img.ptr<cv::Vec3b>(i);
-                //find which coordinate exceeds the allowed range.
-                //lowerlimit : -tp1.x
-                //upperlimit : image_x_cols - tp1.x if positive else tp1.x - image_x_cols
-                
-                /*Trying a different logic starts here*/
-                /*
-                if (tp1.x >= 0){
-                    int val = image_x_cols - tp1.x;
-                    if (val >=0){//image start is where we want it to be.
-                        if (val>=cols){//we can copy entire width of warped image.
-                            
-                        }
-                        else{//we can copy from tp1.x to tp1.x+val and then the rest, i need to start from 0/start point.
-                            
-                        }
-                    }
-                    else{//val is negative, means image is too far ahead, so need to bring it back to start point.
-                        //do from here
-                    }
-                    
-                }
-                else{//tp1.x is negative
-                    
-                }
-                */
-                /*Trying a different logic ends here*/
-                
+   
                 //matrix starts from 0 - which is the top left. - we are changing value of each point
                 for(int j = 0; j < cols; j++){//case when x coordinate is within the allowed range(0-image_x_cols)
                     if (!((Bitt[j][0]==0) && (Bitt[j][1]==0) && (Bitt[j][2]==0))){//if pixel is not black, copy the values to final image                
@@ -197,31 +197,8 @@ void cameraSetup::process_3D_Map() {
                 }
 
             }
-            
-            /*for(int i = 0; i < rows; i++)
-            {   
-                if (tp1.x + i >= 0){
-                    //no need for delete as I am not using 'new'.
-                    Aitt = finalCameraImage.ptr<cv::Vec3b>(tp1.x + i);
-                }
-                else{
-                    //cout << "tp1.x + i, should be < 0 : " << tp1.x + i << endl;
-                    //~5000 rows and 10000 columns available in final image.
-                    Aitt = finalCameraImage.ptr<cv::Vec3b>((image_x_cols) + tp1.x + i);
-                    //cout << "finalCameraImage.size : " << finalCameraImage.size() << endl;
-                }
-                Bitt = temp_warped_img.ptr<cv::Vec3b>(i);
-                //matrix starts from 0 - which is the top left.
-                for(int j = 0; j < cols; j++){
-                    if (tp1.y + j >= 0){
-                        //cout << "tp1.y + j : " << tp1.y + j << endl;
-                        Aitt[tp1.y + j] = Bitt[j];
-                    }
-                    else{
-                        Aitt[(image_y_rows) + tp1.y + j] = Bitt[j]; //because we have an width:height ratio of 2:1 
-                    }    
-                }                
-            }*/
+            current working code ends  here */
+
             
             
             //Mat ROI_finalImage2 = finalCameraImage(Range(100,110),  Range(100,110));
@@ -367,6 +344,7 @@ void cameraSetup::inputImage_cameraCallBack(const sensor_msgs::Image::ConstPtr& 
             if (!new_optimal_camera_matrix.empty())
                 process_3D_Map();
             Mat testMat;
+            //
             undistorted_cam_data.copyTo(testMat, undistort_dummy_white_Mat); //copying using mask
             //cout << "testMat image height : " << testMat.size().height << "," << " testMat image width : " << testMat.size().width << endl;
         } 
@@ -427,7 +405,7 @@ void cameraSetup::setCameraBlendAreaInPixels(int16_t pixels){
 }
 
 //Note : This will cause an issue if we parallelise the code. We will have to synchronize it around the finalImage object because all camera objects will be updating the final image, if so.
-cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, sensor_msgs::ImagePtr& finalImageMsg, image_transport::Publisher& finalImagepub, shared_ptr<mutex> sharedInpMutex, int finalimage_rows, int finalimage_cols)
+cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, sensor_msgs::ImagePtr& finalImageMsg, image_transport::Publisher& finalImagepub, int finalimage_rows, int finalimage_cols)
 :camera_name(name),camera_height(1440), camera_width(2560){
     rotation_matrix = cv::Mat(3, 3, CV_32F);
     //cout << "cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, int finalimage_rows, int finalimage_cols) entered" << endl;
