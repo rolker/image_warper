@@ -100,6 +100,9 @@ string type2str(int type) {
 void cameraSetup::process_3D_Map() {
     //cout << "process_3D_Map reached" << endl;
     Mat temp_warped_img, temp_warped_img_s, mask_warped_img, mask_warped_gray_img;
+    bool second_mask_reqd = false; //true if tp1.x < 0.
+    Mat mask2_warped_img, mask2_warped_gray_img; //optional for split images for negative coordinates.
+    Point tp2(0,0); //optional for split images for negative coordinates.
     Mat finalCameraImage_mask=Mat(finalCameraImage.size(), CV_8UC1, Scalar::all(255));
     Mat finalCameraImage_s; //for blender feed, we need 16SC3 type.
     cv::detail::SphericalWarper sphWarp1(int(image_x_cols/(2*3.14)));
@@ -148,19 +151,53 @@ void cameraSetup::process_3D_Map() {
         
         vector<Point> corners(2); //1 for current camera image and 2 for previous final image
         vector<Size> sizes(2); //1 for current camera image and 2 for previous final image
-        //if (tp1.x < 0){//hack
-        //    tp1.x = 0;   
-        //}
-        //if (tp1.x < 0){//manually changed from neg to 0
-        // tp1.x = 0;   
-        //}
-        corners[0] = tp1;
-//        corners[0] = Point(0,499);; //corner of image
-        cout << "y value corner0 : " << corners[0].y << endl;
-        sizes[0] = s; //size of image
-        corners[1] = Point(0,0); //corner of prev final image
-        cout << "y value corner1 : " << corners[1].y << endl;
-        sizes[1] = finalCameraImage.size(); //size of prev final image
+        
+        //trying with alpha matte - fails at multiply.
+        /*
+        Mat finalCameraImage_float, temp_warped_img_float, alpha;
+        finalCameraImage.convertTo(finalCameraImage_float, CV_32FC3);
+        temp_warped_img.convertTo(temp_warped_img_float, CV_32FC3);
+        mask_warped_img.convertTo(alpha, CV_32FC3, 1.0/255); 
+        Mat ouImage = Mat::zeros(finalCameraImage_float.size(), finalCameraImage_float.type());
+        // Multiply the foreground with the alpha matte
+        multiply(alpha, temp_warped_img_float, temp_warped_img_float);
+        // Multiply the background with ( 1 - alpha )
+        Mat beta = Scalar::all(1)-alpha;
+        beta.convertTo(beta, CV_32FC3);
+        
+        multiply(beta, finalCameraImage_float, finalCameraImage_float);
+        // Add the masked foreground and background.
+        add(temp_warped_img_float, finalCameraImage_float, ouImage);
+        */
+
+        //half working code below
+        cout << camera_name << " : " << "Point is : " << tp1.x << "," << tp1.y << endl;
+        int w = 0;
+        cv::Size s2 = s;
+        int orig_width = s.width; //copying for later use
+        if (tp1.x < 0){//manually changed from neg to 0 - affects pano_2 it seems
+         //tp1.x = tp1.x + image_x_cols;
+            second_mask_reqd = true;
+            //for mask1
+            w = -1 * tp1.x; //width is absolute value of tp1.x
+            s.width = w;    //updating width of mask1
+            //for mask2
+            tp2.x = 0;      //mask2 starts from 0
+            s2.width = orig_width - w;    
+            tp1.x = tp1.x + image_x_cols;            
+        }
+//        corners[1] = Point(0,499);; //corner of image
+        //cout << "y value corner1 : " << corners[1].y << endl;
+        corners[0] = Point(0,0); //corner of prev final image
+        sizes[0] = finalCameraImage.size(); //size of prev final image
+        corners[1] = tp1;
+        //cout << "y value corner0 : " << corners[0].y << endl;
+        sizes[1] = s; //size of image
+        if (second_mask_reqd){
+         corners.push_back(tp2);
+         sizes.push_back(s2);
+        }
+        
         //no need for delete as I am not using 'new'.
         {//using same mutex for the invariant.
             std::lock_guard<std::mutex> lock(sharedMutex);
@@ -168,7 +205,8 @@ void cameraSetup::process_3D_Map() {
             rows = s.height;
             cols = s.width;  
             cout << camera_name << endl;
-            cout << "image size after warp before blend 2 : " << rows << "," << cols << "*****" << tp1.x << "," << tp1.y << endl;
+            cout << "image size after warp before blend is : " << rows << "," << cols << endl;
+            cout << "Point is : " << tp1.x << "," << tp1.y << endl;
             // new code starts here
             blend_type = cv::detail::Blender::FEATHER;
             //blend_type = cv::detail::Blender::MULTI_BAND;
@@ -182,7 +220,7 @@ void cameraSetup::process_3D_Map() {
                 cv::detail::FeatherBlender* feather_blender = dynamic_cast<cv::detail::FeatherBlender*>(blender.get());
                 //feather_blender->setSharpness(1.f/blend_width);
                 feather_blender->setSharpness(1000);
-                cout << "Feather blender, sharpness: " << feather_blender->sharpness();                
+                //cout << "Feather blender, sharpness: " << feather_blender->sharpness();                
             }
             else if (blend_type == cv::detail::Blender::MULTI_BAND){
                 cv::detail::MultiBandBlender* multiband_blender = dynamic_cast<cv::detail::MultiBandBlender*>(blender.get());
@@ -199,8 +237,16 @@ void cameraSetup::process_3D_Map() {
             //finalCameraImage_mask - spans entire image
             temp_warped_img.convertTo(temp_warped_img_s, CV_16S);
             finalCameraImage.convertTo(finalCameraImage_s, CV_16S);
-            blender->feed(finalCameraImage_s, finalCameraImage_mask, corners[1]);
-            blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[0]);
+            blender->feed(finalCameraImage_s, finalCameraImage_mask, corners[0]);
+            if (second_mask_reqd){
+                Mat A = temp_warped_img_s(Range::all(), Range(1, w));
+                Mat B = temp_warped_img_s(Range::all(), Range(w+1, orig_width));
+                blender->feed(A, Mat(A.size(), CV_8UC1, Scalar(255)), corners[1]);
+                blender->feed(B, Mat(B.size(), CV_8UC1, Scalar(255)), corners[2]);
+            }
+            else{
+                blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[1]);
+            }
             Mat result_mask;
             blender->blend(finalCameraImage_s, result_mask);
             finalCameraImage_s.convertTo(finalCameraImage, CV_8UC3); //converting back to Unsigned
