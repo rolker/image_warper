@@ -24,7 +24,6 @@ image_transport::Publisher finalimage_publisher;
 vector<cameraSetup*> cameraVector; //<check>
 vector<string> camera_names;
 vector<thread> camera_threads;
-shared_ptr<mutex> sharedMutexPtr = make_shared<mutex>(); //remove this, will have to change the definition of a function as well.
 
 //This causes issue if we use MultiThreadedSpinner as the main thread will be blocked. So use AsyncSpinner. AsyncSpinner also has an issue that it will process the dynamic callback only when 
 //note : if we have more than 6 cameras, we need to add an entry to the cfg file.
@@ -105,10 +104,6 @@ void callableFunc(std::string name, ros::NodeHandle& handle, cv::Mat& image, sen
 
 
 int main(int argc, char** argv){
-    Mat a(2,2,CV_8UC3);
-    cout << a;
-    Mat a2(2,2,CV_8UC3, Scalar(0,0,0));
-    cout << a2;
     /*Below code is to try open a video file and convert to a ROS topic.
     
     // V Imp : change the value in constructor to -1 and -1 for width and height.

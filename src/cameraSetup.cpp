@@ -101,6 +101,7 @@ void cameraSetup::process_3D_Map() {
     //cout << "process_3D_Map reached" << endl;
     Mat temp_warped_img, temp_warped_img_s, mask_warped_img, mask_warped_gray_img;
     bool second_mask_reqd = false; //true if tp1.x < 0.
+    Mat img2, img2_s; //optional for split images for negative coordinates.
     Mat mask2_warped_img, mask2_warped_gray_img; //optional for split images for negative coordinates.
     Point tp2(0,0); //optional for split images for negative coordinates.
     Mat finalCameraImage_mask=Mat(finalCameraImage.size(), CV_8UC1, Scalar::all(255));
@@ -176,16 +177,52 @@ void cameraSetup::process_3D_Map() {
         cv::Size s2 = s;
         int orig_width = s.width; //copying for later use
         if (tp1.x < 0){//manually changed from neg to 0 - affects pano_2 it seems
-         //tp1.x = tp1.x + image_x_cols;
-            second_mask_reqd = true;
-            //for mask1
-            w = -1 * tp1.x; //width is absolute value of tp1.x
-            s.width = w;    //updating width of mask1
-            //for mask2
-            tp2.x = 0;      //mask2 starts from 0
-            s2.width = orig_width - w;    
-            tp1.x = tp1.x + image_x_cols;            
+            //cout << "last point of image as per this is : tp1.x + orig_width " << tp1.x + orig_width << endl;
+            if (tp1.x + orig_width > 0){//2 masks required
+                //tp1.x = tp1.x + image_x_cols;
+                second_mask_reqd = true;
+                //img1 is the negative part being processed, img2 is from 0,0.
+                //for image1
+                //note use the image_x_cols only for updating points.
+                //if we use it for getting parts of image, it will go out of bounds, as our image is much smaller than the panorama.
+                w = -1 * tp1.x; //width is absolute value of tp1.x
+                tp1.x = tp1.x + image_x_cols; //get top left of image 1. tp1.y remains same as before.
+                tp2.x = 0;                    //tl of image 2 starts from 0.
+                tp2.y = tp1.y;                //tp2.y remains same as tp1.y.
+                //For range, left end is inclusive, rt end is exclusive, and rows begin from 0, not 1.
+                //so here lets say tp1.x = -15 and original width = 100. so, img1 width = 15. img2 width = 100-15 = 85.
+                //split is from (1000+(-15)) to 999 and from 0 to 84, which is , (original width -img1 width - 1).
+                //so Range(985, 1000) and Range(0, 85)
+                //cout << "printing roi img2 : " << endl;
+                /*cout << "w : " << w << endl;
+                cout << "orig_width : " << orig_width << endl;
+                cout << "img2 starts : 0 " << endl;
+                cout << "img2 ends(exclusive) : orig_width-w : " << orig_width-w << endl;
+                cout << "img1 starts : new tp1.x : " <<  tp1.x << endl;
+                cout << "img1 ends(exclusive) : image_x_cols : " << image_x_cols << endl;
+                cout << camera_name << " : temp_warped_img size before split : " << s << endl;*/
+                temp_warped_img(Range::all(), Range(w, orig_width)).copyTo(img2); //deep copy - do this first
+                s2 = img2.size();
+                /*cout << "img2 size : " << s2 << endl;
+                cout << "img1 starts : new tp1.x : " <<  tp1.x << endl;
+                cout << "img1 ends(exclusive) : image_x_cols : " << image_x_cols << endl;*/
+                temp_warped_img = temp_warped_img(Range::all(), Range(0,w)); //overwriting temp_warped_img - do this second
+                s = temp_warped_img.size();
+                
+                //cout << "img1 size : " << s << endl;
+                
+                
+                /*no need for this i guess
+                s.width = w;    //updating width of mask1
+                //for image2            
+                s2.width = orig_width - w;    
+                */     
+            }
+            else{//only 1 mask required
+               tp1.x = tp1.x + image_x_cols; //update top left of image 1.     
+            }
         }
+        //In opencv coordinate s/m, Y = 0 at top left and increases downwards.
 //        corners[1] = Point(0,499);; //corner of image
         //cout << "y value corner1 : " << corners[1].y << endl;
         corners[0] = Point(0,0); //corner of prev final image
@@ -218,8 +255,8 @@ void cameraSetup::process_3D_Map() {
             //reference : https://docs.opencv.org/3.4/d9/dd8/samples_2cpp_2stitching_detailed_8cpp-example.html#a53
             if (blend_type == cv::detail::Blender::FEATHER){
                 cv::detail::FeatherBlender* feather_blender = dynamic_cast<cv::detail::FeatherBlender*>(blender.get());
-                //feather_blender->setSharpness(1.f/blend_width);
-                feather_blender->setSharpness(1000);
+                feather_blender->setSharpness(1.f/blend_width);
+                //feather_blender->setSharpness(1000);
                 //cout << "Feather blender, sharpness: " << feather_blender->sharpness();                
             }
             else if (blend_type == cv::detail::Blender::MULTI_BAND){
@@ -235,14 +272,16 @@ void cameraSetup::process_3D_Map() {
             
             blender->prepare(corners, sizes);
             //finalCameraImage_mask - spans entire image
-            temp_warped_img.convertTo(temp_warped_img_s, CV_16S);
-            finalCameraImage.convertTo(finalCameraImage_s, CV_16S);
+            temp_warped_img.convertTo(temp_warped_img_s, CV_16SC3);
+            finalCameraImage.convertTo(finalCameraImage_s, CV_16SC3);
             blender->feed(finalCameraImage_s, finalCameraImage_mask, corners[0]);
             if (second_mask_reqd){
-                Mat A = temp_warped_img_s(Range::all(), Range(1, w));
-                Mat B = temp_warped_img_s(Range::all(), Range(w+1, orig_width));
-                blender->feed(A, Mat(A.size(), CV_8UC1, Scalar(255)), corners[1]);
-                blender->feed(B, Mat(B.size(), CV_8UC1, Scalar(255)), corners[2]);
+                img2.convertTo(img2_s, CV_16SC3);
+                /*blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[1]);
+                blender->feed(img2_s, mask_warped_gray_img, corners[2]);
+                */
+                blender->feed(temp_warped_img_s, Mat(temp_warped_img_s.size(), CV_8UC1, Scalar::all(255)), corners[1]);
+                blender->feed(img2_s, Mat(img2.size(), CV_8UC1, Scalar::all(255)), corners[2]);
             }
             else{
                 blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[1]);
@@ -250,10 +289,6 @@ void cameraSetup::process_3D_Map() {
             Mat result_mask;
             blender->blend(finalCameraImage_s, result_mask);
             finalCameraImage_s.convertTo(finalCameraImage, CV_8UC3); //converting back to Unsigned
-            s = temp_warped_img.size();
-            rows = s.height;
-            cols = s.width; 
-//            cout << "image size after warp after blend " << rows << "," << cols << endl;
             cout << "finalCameraImage : " << finalCameraImage.size().height << "," << finalCameraImage.size().width << endl;
             //new code ends here
             
