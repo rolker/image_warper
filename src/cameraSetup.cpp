@@ -171,8 +171,8 @@ void cameraSetup::process_3D_Map() {
         add(temp_warped_img_float, finalCameraImage_float, ouImage);
         */
 
-        //half working code below
-        cout << camera_name << " : " << "Point is : " << tp1.x << "," << tp1.y << endl;
+        //working code with mask below
+        //cout << camera_name << " : " << "Point is : " << tp1.x << "," << tp1.y << endl;
         int w = 0;
         cv::Size s2 = s;
         int orig_width = s.width; //copying for later use
@@ -241,29 +241,29 @@ void cameraSetup::process_3D_Map() {
             s = temp_warped_img.size();
             rows = s.height;
             cols = s.width;  
-            cout << camera_name << endl;
-            cout << "image size after warp before blend is : " << rows << "," << cols << endl;
-            cout << "Point is : " << tp1.x << "," << tp1.y << endl;
+            //cout << camera_name << endl;
+            //cout << "image size after warp before blend is : " << rows << "," << cols << endl;
+            //cout << "Point is : " << tp1.x << "," << tp1.y << endl;
             // new code starts here
-            blend_type = cv::detail::Blender::FEATHER;
+            blend_type = cv::detail::Blender::MULTI_BAND;
             //blend_type = cv::detail::Blender::MULTI_BAND;
             blender = cv::detail::Blender::createDefault(blend_type, false); //false given for CUDA processing
             Size dst_sz = cv::detail::resultRoi(corners, sizes).size();
             //change this to global variable
-            float blend_strength = 5;
+            float blend_strength = 1;
             float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
             //reference : https://docs.opencv.org/3.4/d9/dd8/samples_2cpp_2stitching_detailed_8cpp-example.html#a53
             if (blend_type == cv::detail::Blender::FEATHER){
                 cv::detail::FeatherBlender* feather_blender = dynamic_cast<cv::detail::FeatherBlender*>(blender.get());
                 feather_blender->setSharpness(1.f/blend_width);
-                //feather_blender->setSharpness(1000);
+                //feather_blender->setSharpness(1);
                 //cout << "Feather blender, sharpness: " << feather_blender->sharpness();                
             }
             else if (blend_type == cv::detail::Blender::MULTI_BAND){
                 cv::detail::MultiBandBlender* multiband_blender = dynamic_cast<cv::detail::MultiBandBlender*>(blender.get());
                 multiband_blender-> setNumBands(static_cast<int>(ceil(log(blend_width)/log(2.)) - 1.));
-                cout << camera_name << endl;
-                cout << "Multi-band blender, number of bands: " << multiband_blender->numBands();
+                //cout << camera_name << endl;
+                //cout << "Multi-band blender, number of bands: " << multiband_blender->numBands();
             }
             else {//this should never be invoked
              ROS_ERROR("Error : %s", "Blend type is invalid.");
@@ -280,8 +280,10 @@ void cameraSetup::process_3D_Map() {
                 /*blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[1]);
                 blender->feed(img2_s, mask_warped_gray_img, corners[2]);
                 */
-                blender->feed(temp_warped_img_s, Mat(temp_warped_img_s.size(), CV_8UC1, Scalar::all(255)), corners[1]);
-                blender->feed(img2_s, Mat(img2.size(), CV_8UC1, Scalar::all(255)), corners[2]);
+                /*blender->feed(temp_warped_img_s, Mat(temp_warped_img_s.size(), CV_8UC1, Scalar::all(255)), corners[1]);
+                blender->feed(img2_s, Mat(img2.size(), CV_8UC1, Scalar::all(255)), corners[2]);*/
+                blender->feed(temp_warped_img_s, mask_warped_gray_img(Range::all(), Range(0,w)), corners[1]);
+                blender->feed(img2_s, mask_warped_gray_img(Range::all(), Range(w,orig_width)), corners[2]);
             }
             else{
                 blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[1]);
@@ -289,7 +291,7 @@ void cameraSetup::process_3D_Map() {
             Mat result_mask;
             blender->blend(finalCameraImage_s, result_mask);
             finalCameraImage_s.convertTo(finalCameraImage, CV_8UC3); //converting back to Unsigned
-            cout << "finalCameraImage : " << finalCameraImage.size().height << "," << finalCameraImage.size().width << endl;
+            //cout << "finalCameraImage : " << finalCameraImage.size().height << "," << finalCameraImage.size().width << endl;
             //new code ends here
             
             
