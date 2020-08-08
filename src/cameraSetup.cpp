@@ -153,23 +153,6 @@ void cameraSetup::process_3D_Map() {
         vector<Point> corners(2); //1 for current camera image and 2 for previous final image
         vector<Size> sizes(2); //1 for current camera image and 2 for previous final image
         
-        //trying with alpha matte - fails at multiply.
-        /*
-        Mat finalCameraImage_float, temp_warped_img_float, alpha;
-        finalCameraImage.convertTo(finalCameraImage_float, CV_32FC3);
-        temp_warped_img.convertTo(temp_warped_img_float, CV_32FC3);
-        mask_warped_img.convertTo(alpha, CV_32FC3, 1.0/255); 
-        Mat ouImage = Mat::zeros(finalCameraImage_float.size(), finalCameraImage_float.type());
-        // Multiply the foreground with the alpha matte
-        multiply(alpha, temp_warped_img_float, temp_warped_img_float);
-        // Multiply the background with ( 1 - alpha )
-        Mat beta = Scalar::all(1)-alpha;
-        beta.convertTo(beta, CV_32FC3);
-        
-        multiply(beta, finalCameraImage_float, finalCameraImage_float);
-        // Add the masked foreground and background.
-        add(temp_warped_img_float, finalCameraImage_float, ouImage);
-        */
 
         //working code with mask below
         //cout << camera_name << " : " << "Point is : " << tp1.x << "," << tp1.y << endl;
@@ -244,6 +227,8 @@ void cameraSetup::process_3D_Map() {
             //cout << camera_name << endl;
             //cout << "image size after warp before blend is : " << rows << "," << cols << endl;
             //cout << "Point is : " << tp1.x << "," << tp1.y << endl;
+            
+            
             // new code starts here
             blend_type = cv::detail::Blender::MULTI_BAND;
             //blend_type = cv::detail::Blender::MULTI_BAND;
@@ -255,13 +240,14 @@ void cameraSetup::process_3D_Map() {
             //reference : https://docs.opencv.org/3.4/d9/dd8/samples_2cpp_2stitching_detailed_8cpp-example.html#a53
             if (blend_type == cv::detail::Blender::FEATHER){
                 cv::detail::FeatherBlender* feather_blender = dynamic_cast<cv::detail::FeatherBlender*>(blender.get());
-                feather_blender->setSharpness(1.f/blend_width);
-                //feather_blender->setSharpness(1);
+                //feather_blender->setSharpness(1.f/blend_width);
+                feather_blender->setSharpness(1);
                 //cout << "Feather blender, sharpness: " << feather_blender->sharpness();                
             }
             else if (blend_type == cv::detail::Blender::MULTI_BAND){
                 cv::detail::MultiBandBlender* multiband_blender = dynamic_cast<cv::detail::MultiBandBlender*>(blender.get());
-                multiband_blender-> setNumBands(static_cast<int>(ceil(log(blend_width)/log(2.)) - 1.));
+                //multiband_blender-> setNumBands(static_cast<int>(ceil(log(blend_width)/log(2.)) - 1.));
+                multiband_blender->setNumBands(1);
                 //cout << camera_name << endl;
                 //cout << "Multi-band blender, number of bands: " << multiband_blender->numBands();
             }
@@ -277,11 +263,11 @@ void cameraSetup::process_3D_Map() {
             blender->feed(finalCameraImage_s, finalCameraImage_mask, corners[0]);
             if (second_mask_reqd){
                 img2.convertTo(img2_s, CV_16SC3);
-                /*blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[1]);
-                blender->feed(img2_s, mask_warped_gray_img, corners[2]);
-                */
-                /*blender->feed(temp_warped_img_s, Mat(temp_warped_img_s.size(), CV_8UC1, Scalar::all(255)), corners[1]);
-                blender->feed(img2_s, Mat(img2.size(), CV_8UC1, Scalar::all(255)), corners[2]);*/
+                //blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[1]);
+                //blender->feed(img2_s, mask_warped_gray_img, corners[2]);
+                
+                //blender->feed(temp_warped_img_s, Mat(temp_warped_img_s.size(), CV_8UC1, Scalar::all(255)), corners[1]);
+                //blender->feed(img2_s, Mat(img2.size(), CV_8UC1, Scalar::all(255)), corners[2]);
                 blender->feed(temp_warped_img_s, mask_warped_gray_img(Range::all(), Range(0,w)), corners[1]);
                 blender->feed(img2_s, mask_warped_gray_img(Range::all(), Range(w,orig_width)), corners[2]);
             }
@@ -293,6 +279,70 @@ void cameraSetup::process_3D_Map() {
             finalCameraImage_s.convertTo(finalCameraImage, CV_8UC3); //converting back to Unsigned
             //cout << "finalCameraImage : " << finalCameraImage.size().height << "," << finalCameraImage.size().width << endl;
             //new code ends here
+            
+            
+            
+            /*
+            //trying with alpha matte - fails at subtract and multiply.            
+            //Issue is that the matrices have to be same size, but the mat object for the new camera image is much lower than the final image. Need to rethink.
+            Mat finalCameraImage_float, temp_warped_img_float, alpha;
+            Mat img2_float, alpha2;
+            finalCameraImage.convertTo(finalCameraImage_float, CV_32FC3);
+            temp_warped_img.convertTo(temp_warped_img_float, CV_32FC3);
+            if (second_mask_reqd){
+                img2.convertTo(img2_float, CV_32FC3);
+                //alpha matte 1
+                mask_warped_img(Range::all(), Range(0,w)).convertTo(alpha, CV_32FC3, 1.0/255); 
+                //alpha matte 2
+                mask_warped_img(Range::all(), Range(w,orig_width)).convertTo(alpha2, CV_32FC3, 1.0/255); 
+            }
+            else{
+                //only 1 alpha matte
+                mask_warped_img.convertTo(alpha, CV_32FC3, 1.0/255); 
+            }
+            Mat ouImage = Mat::zeros(finalCameraImage_float.size(), finalCameraImage_float.type());
+            Mat beta = Mat::ones(finalCameraImage_float.size(), finalCameraImage_float.type());
+            if (second_mask_reqd){
+                cout << "reached : " << camera_name << endl;
+                // Multiply the foregrounds with the alpha mattes
+                multiply(alpha, temp_warped_img_float, temp_warped_img_float);
+                multiply(alpha2, img2, img2);
+                // Multiply the background with ( 1 - alpha - alpha2)
+                subtract(beta, alpha, beta);
+                subtract(beta, alpha2, beta);
+                beta.convertTo(beta, CV_32FC3);            
+                multiply(beta, finalCameraImage_float, finalCameraImage_float);
+                // Add the masked foreground and background.
+                add(temp_warped_img_float, finalCameraImage_float, ouImage);
+                add(img2_float, ouImage, ouImage);
+            }
+            else{
+                cout << "reached : " << camera_name << endl;
+                // Multiply the foreground with the alpha matte
+                cout << "alpha.size : " << alpha.size() << endl;
+                cout << "temp_warped_img_float.size : " << temp_warped_img_float.size() << endl;
+                multiply(alpha, temp_warped_img_float, temp_warped_img_float);
+                cout << "temp_warped_img_float.size after multiply : " << temp_warped_img_float.size() << endl;
+                // Multiply the background with ( 1 - alpha )
+                cout << "beta.size : " << beta.size() << endl;
+                cout << "alpha.size : " << alpha.size() << endl;
+                subtract(beta, alpha, beta);
+                cout << "beta.size after subtract: " << beta.size() << endl;
+                beta.convertTo(beta, CV_32FC3);       
+                cout << "beta.size after convert: " << beta.size() << endl;
+                cout << "finalCameraImage_float.size : " << finalCameraImage_float.size() << endl;
+                multiply(Scalar::all(1.0) - alpha, finalCameraImage_float, finalCameraImage_float);
+                cout << "finalCameraImage_float.size after multiply : " << finalCameraImage_float.size() << endl;
+                // Add the masked foreground and background.
+                cout << "temp_warped_img_float.size : " << temp_warped_img_float.size() << endl;
+                cout << "finalCameraImage_float.size : " << finalCameraImage_float.size() << endl;
+                cout << "ouImage.size : " << ouImage.size() << endl;
+                add(temp_warped_img_float, finalCameraImage_float, ouImage);
+                cout << "ouImage.size after final add : " << ouImage.size() << endl;
+            }
+            finalCameraImage = ouImage;
+            //alpha matte code ends here
+            */
             
             
             /*current working code starts here
