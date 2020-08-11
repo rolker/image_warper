@@ -211,6 +211,10 @@ void cameraSetup::process_3D_Map() {
         //no need for delete as I am not using 'new'.
         {//using same mutex for the invariant.
             std::lock_guard<std::mutex> lock(sharedMutex);
+            camera_imageQueue.push_back(temp_warped_img);
+            camera_maskQueue.push_back(mask_warped_gray_img);
+            camera_imageTopLeftQueue.push_back(tp1);
+            
             s = temp_warped_img.size();
             rows = s.height;
             cols = s.width;  
@@ -580,6 +584,10 @@ void cameraSetup::setCameraTransformDelay(double_t delay){
 
 void cameraSetup::setCameraBlendAreaInPixels(int16_t pixels){
     pixels_to_blend = pixels;
+}
+
+void cameraSetup"::getWarpedImages(){
+    
 }
 
 //Note : This will cause an issue if we parallelise the code. We will have to synchronize it around the finalImage object because all camera objects will be updating the final image, if so.
