@@ -45,7 +45,7 @@ public:
     ~cameraSetup();
     void setCameraTransformDelay(double_t delay);
     void setCameraBlendAreaInPixels(int16_t pixels);
-
+    
     std::string camera_name; //name is without the first forward slash in the topic, eg: pano_1
     int camera_height; //camera resolution height
     int camera_width; //camera resolution width
@@ -65,6 +65,10 @@ private:
     int image_x_cols;
     tf2_ros::Buffer* tfBuffer;
     cv::Mat new_optimal_camera_matrix;
+    queue<cv::Mat> camera_imageQueue;
+    queue<cv::Mat> camera_maskQueue;
+    queue<Point> camera_imageTopLeftQueue;
+    
     //This is very important. The TransformListener has to be declared as class or global variable. It needs time.
     //As per documentation,  The TransformListener object should be scoped to persist otherwise its cache will be unable to fill and almost every query will fail.Once the listener is created, it starts receiving tf2 transformations over the wire, and buffers them for up to 10 seconds.
     tf2_ros::TransformListener* tfListener;

@@ -139,17 +139,7 @@ void cameraSetup::process_3D_Map() {
         /*Mat temp = finalCameraImage(cv::Rect(1,1,rows,cols));  //creates a pointer to the ROI of finalCameraImage
         temp_warped_img.copyTo(temp); //use copyTo, do not use assignment operator as the pointer will get changed.
         */
-        
-        Vec3b* Aitt;
-        Vec3b* Bitt;
-        //the 4 values above which values should be cyclic.
-        
-        //for finding the mask.
-        int col_left = 0;
-        int col_rt =  (image_x_cols - 1) ;
-        int row_down = 0;
-        int row_up = image_y_rows - 1;
-        
+                
         vector<Point> corners(2); //1 for current camera image and 2 for previous final image
         vector<Size> sizes(2); //1 for current camera image and 2 for previous final image
         
@@ -346,6 +336,9 @@ void cameraSetup::process_3D_Map() {
             
             
             /*current working code starts here
+            Vec3b* Aitt;
+            Vec3b* Bitt;
+
             //<check>have to add a check if its black cell or not.
             for(int i = 0; i < rows; i++)
             {   

@@ -188,7 +188,10 @@ int main(int argc, char** argv){
     ros::AsyncSpinner async_spinner(0);
     async_spinner.start();
     cout << "reached here" << endl;
-    ros::waitForShutdown(); //AsyncSpinner stops when node shuts down.
+    while (ros::ok){//ros::ok becomes false when node is shut down.
+        
+    }
+//    ros::waitForShutdown(); //AsyncSpinner stops when node shuts down.
 
     //below final image publisher code has been shifted to within cameraSetup
     //while(ros::ok()){
