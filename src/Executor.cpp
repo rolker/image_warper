@@ -24,6 +24,7 @@ image_transport::Publisher finalimage_publisher;
 vector<cameraSetup*> cameraVector; //<check>
 vector<string> camera_names;
 vector<thread> camera_threads;
+std::mutex cameraSetup::sharedMutex; //shared across all objects/cameras
 
 //This causes issue if we use MultiThreadedSpinner as the main thread will be blocked. So use AsyncSpinner. AsyncSpinner also has an issue that it will process the dynamic callback only when 
 //note : if we have more than 6 cameras, we need to add an entry to the cfg file.
@@ -189,6 +190,69 @@ int main(int argc, char** argv){
     async_spinner.start();
     cout << "reached here" << endl;
     while (ros::ok){//ros::ok becomes false when node is shut down.
+        
+        
+        //blending code starts here       
+        for (int i = 0; i < NO_OF_CAMERAS; i++){
+            //all images, masks, tl corners and sizes will get saved to member Variables for each camera.
+            cameraVector[i]-> popCameraQueue();
+        }
+        {   //use this wherever you read the camera images, corners n sizes.
+            std::lock_guard<std::mutex> lock(sharedMutex);
+        }
+            blend_type = cv::detail::Blender::MULTI_BAND;
+            blender = cv::detail::Blender::createDefault(blend_type, false); //false given for CUDA processing
+            Size dst_sz = cv::detail::resultRoi(corners, sizes).size();
+            cout << "camera_name : " << camera_name << " : dst_sz : " << dst_sz << endl;
+            Rect resultROI = cv::detail::resultRoi(corners, sizes);
+            Mat ROI = finalCameraImage(resultROI);
+            //imshow("resultROI", ROI);
+            //change this to global variable
+            float blend_strength = 1;
+            float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
+            //reference : https://docs.opencv.org/3.4/d9/dd8/samples_2cpp_2stitching_detailed_8cpp-example.html#a53
+            if (blend_type == cv::detail::Blender::FEATHER){
+                cv::detail::FeatherBlender* feather_blender = dynamic_cast<cv::detail::FeatherBlender*>(blender.get());
+                //feather_blender->setSharpness(1.f/blend_width);
+                feather_blender->setSharpness(1);
+                //cout << "Feather blender, sharpness: " << feather_blender->sharpness();                
+            }
+            else if (blend_type == cv::detail::Blender::MULTI_BAND){
+                cv::detail::MultiBandBlender* multiband_blender = dynamic_cast<cv::detail::MultiBandBlender*>(blender.get());
+                //multiband_blender-> setNumBands(static_cast<int>(ceil(log(blend_width)/log(2.)) - 1.));
+                multiband_blender->setNumBands(1);
+                //cout << camera_name << endl;
+                //cout << "Multi-band blender, number of bands: " << multiband_blender->numBands();
+            }
+            else {//this should never be invoked
+             ROS_ERROR("Error : %s", "Blend type is invalid.");
+             return;
+            }
+            
+            blender->prepare(corners, sizes);
+            //finalCameraImage_mask - spans entire image
+            temp_warped_img.convertTo(temp_warped_img_s, CV_16SC3);
+            finalCameraImage.convertTo(finalCameraImage_s, CV_16SC3);
+            blender->feed(finalCameraImage_s, finalCameraImage_mask, corners[0]);
+            if (second_mask_reqd){
+                img2.convertTo(img2_s, CV_16SC3);
+                //blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[1]);
+                //blender->feed(img2_s, mask_warped_gray_img, corners[2]);
+                
+                //blender->feed(temp_warped_img_s, Mat(temp_warped_img_s.size(), CV_8UC1, Scalar::all(255)), corners[1]);
+                //blender->feed(img2_s, Mat(img2.size(), CV_8UC1, Scalar::all(255)), corners[2]);
+                blender->feed(temp_warped_img_s, mask_warped_gray_img(Range::all(), Range(0,w)), corners[1]);
+                blender->feed(img2_s, mask_warped_gray_img(Range::all(), Range(w,orig_width)), corners[2]);
+            }
+            else{
+                blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[1]);
+            }
+            Mat result_mask;
+            blender->blend(finalCameraImage_s, result_mask);
+            finalCameraImage_s.convertTo(finalCameraImage, CV_8UC3); //converting back to Unsigned
+            //cout << "finalCameraImage : " << finalCameraImage.size().height << "," << finalCameraImage.size().width << endl;
+            
+        //blending code ends here
         
     }
 //    ros::waitForShutdown(); //AsyncSpinner stops when node shuts down.

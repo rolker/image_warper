@@ -30,6 +30,7 @@
 #include <opencv2/stitching/detail/util.hpp> //for resultROI used for blending.
 #include <opencv2/core/cvstd.hpp>           //for shared pointers.
 #include <opencv2/imgproc/imgproc.hpp>      //for converting to gray scale.
+#include <queue>
 
 //#include <Eigen/Geometry>                                   //for quartenion to rotation matrix
 //#include <tf2/LinearMath/Transform.h>                       //to convert from TransformStamped to Quartenion
@@ -45,12 +46,16 @@ public:
     ~cameraSetup();
     void setCameraTransformDelay(double_t delay);
     void setCameraBlendAreaInPixels(int16_t pixels);
+    void popCameraQueue();
     
     std::string camera_name; //name is without the first forward slash in the topic, eg: pano_1
     int camera_height; //camera resolution height
     int camera_width; //camera resolution width
-
-    
+    //<check>have to initialize below in constructor - wud have liked to create a struct here instead of 4 variables and 4 queues.
+    cv::Mat current_image;
+    cv::Mat current_mask;
+    cv::Point current_tl;
+    cv::Size current_image_size;
     
 private:
     // Variables declaration
@@ -65,9 +70,9 @@ private:
     int image_x_cols;
     tf2_ros::Buffer* tfBuffer;
     cv::Mat new_optimal_camera_matrix;
-    queue<cv::Mat> camera_imageQueue;
-    queue<cv::Mat> camera_maskQueue;
-    queue<Point> camera_imageTopLeftQueue;
+    std::queue<cv::Mat> camera_imageQueue;
+    std::queue<cv::Mat> camera_maskQueue;
+    std::queue<cv::Point> camera_imageTopLeftQueue;
     
     //This is very important. The TransformListener has to be declared as class or global variable. It needs time.
     //As per documentation,  The TransformListener object should be scoped to persist otherwise its cache will be unable to fill and almost every query will fail.Once the listener is created, it starts receiving tf2 transformations over the wire, and buffers them for up to 10 seconds.

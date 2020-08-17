@@ -7,7 +7,7 @@
 
 using namespace std;
 using namespace cv;
-std::mutex cameraSetup::sharedMutex;
+//std::mutex cameraSetup::sharedMutex; this has been done in Executor.cpp
 
 
 bool cameraSetup::checkCameraResolution() {
@@ -211,9 +211,9 @@ void cameraSetup::process_3D_Map() {
         //no need for delete as I am not using 'new'.
         {//using same mutex for the invariant.
             std::lock_guard<std::mutex> lock(sharedMutex);
-            camera_imageQueue.push_back(temp_warped_img);
-            camera_maskQueue.push_back(mask_warped_gray_img);
-            camera_imageTopLeftQueue.push_back(tp1);
+            camera_imageQueue.push(temp_warped_img);
+            camera_maskQueue.push(mask_warped_gray_img);
+            camera_imageTopLeftQueue.push(tp1);
             
             s = temp_warped_img.size();
             rows = s.height;
@@ -228,6 +228,10 @@ void cameraSetup::process_3D_Map() {
             //blend_type = cv::detail::Blender::MULTI_BAND;
             blender = cv::detail::Blender::createDefault(blend_type, false); //false given for CUDA processing
             Size dst_sz = cv::detail::resultRoi(corners, sizes).size();
+            cout << "camera_name : " << camera_name << " : dst_sz : " << dst_sz << endl;
+            Rect resultROI = cv::detail::resultRoi(corners, sizes);
+            Mat ROI = finalCameraImage(resultROI);
+            //imshow("resultROI", ROI);
             //change this to global variable
             float blend_strength = 1;
             float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
@@ -586,8 +590,23 @@ void cameraSetup::setCameraBlendAreaInPixels(int16_t pixels){
     pixels_to_blend = pixels;
 }
 
-void cameraSetup"::getWarpedImages(){
-    
+void cameraSetup::popCameraQueue(){
+    {//popping under the same mutex and lock.
+     //pop only deletes the element in C++, use front to access it first
+        std::lock_guard<std::mutex> lock(sharedMutex);
+        while (!camera_imageQueue.empty()){
+            current_image = camera_imageQueue.front();
+            current_image_size = current_image.size();
+            camera_imageQueue.pop();
+            break;
+        }
+        //since they are locked by a shared Mutex, when the first Q has an object, the other Queues will also have it.
+        current_mask = camera_maskQueue.front();
+        camera_maskQueue.pop();
+        current_tl = camera_imageTopLeftQueue.front();
+        camera_imageTopLeftQueue.pop();
+        
+    }
 }
 
 //Note : This will cause an issue if we parallelise the code. We will have to synchronize it around the finalImage object because all camera objects will be updating the final image, if so.
