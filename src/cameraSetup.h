@@ -47,6 +47,10 @@ public:
     void setCameraTransformDelay(double_t delay);
     void setCameraBlendAreaInPixels(int16_t pixels);
     void popCameraQueue();
+    static std::mutex* getSharedMutex(){//public method which returns the static mutex - may need to change this concept.
+     return &sharedMutex;   
+    }
+
     
     std::string camera_name; //name is without the first forward slash in the topic, eg: pano_1
     int camera_height; //camera resolution height
@@ -65,7 +69,7 @@ private:
     cv::Mat finalCameraImage;
     sensor_msgs::ImagePtr msg;
     image_transport::Publisher finalimage_publisher;
-    static std::mutex sharedMutex; //shared across all objects/cameras
+    //static std::mutex sharedMutex; //shared across all objects/cameras
     int image_y_rows;
     int image_x_cols;
     tf2_ros::Buffer* tfBuffer;
@@ -84,12 +88,13 @@ private:
     ros::Subscriber tf_Subscriber;
     ros::Subscriber tf_static_Subscriber;    
     double_t camera_transform_delay; //setting it as double_t bcos in cfg file, we do the same.
+    int blend_type = cv::detail::Blender::MULTI_BAND; ///Blender::MULTI_BAND or Blender::FEATHER or Blender::NO
+    cv::Ptr<cv::detail::Blender> blender; //pointer for blender as from sample in opencv
     int16_t pixels_to_blend; //setting it as int16_t bcos in cfg file, we do the same as int_t.
     cv::Mat dummy_white_Mat;
     cv::Mat undistort_dummy_white_Mat;
-    int blend_type = cv::detail::Blender::MULTI_BAND; ///Blender::MULTI_BAND or Blender::FEATHER or Blender::NO
-    cv::Ptr<cv::detail::Blender> blender; //pointer for blender as from sample in opencv
-    
+    static std::mutex sharedMutex; //shared across all objects/cameras
+
     //Methods declaration
     bool checkCameraResolution();   //checks resolution of the camera if its valid.
     bool checkCameraData();         //checks input camera data if its valid.

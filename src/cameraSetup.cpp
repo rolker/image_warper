@@ -7,7 +7,7 @@
 
 using namespace std;
 using namespace cv;
-//std::mutex cameraSetup::sharedMutex; this has been done in Executor.cpp
+std::mutex cameraSetup::sharedMutex; //this has been done in Executor.cpp
 
 
 bool cameraSetup::checkCameraResolution() {
@@ -100,7 +100,7 @@ string type2str(int type) {
 void cameraSetup::process_3D_Map() {
     //cout << "process_3D_Map reached" << endl;
     Mat temp_warped_img, temp_warped_img_s, mask_warped_img, mask_warped_gray_img;
-    bool second_mask_reqd = false; //true if tp1.x < 0.
+    bool second_mask_reqd = false; //true if tp1.x < 0 and if it gets split.
     Mat img2, img2_s; //optional for split images for negative coordinates.
     Mat mask2_warped_img, mask2_warped_gray_img; //optional for split images for negative coordinates.
     Point tp2(0,0); //optional for split images for negative coordinates.
@@ -127,6 +127,18 @@ void cameraSetup::process_3D_Map() {
             ROS_ERROR("Point returned from Spherical Warp has negative y-coordinate: %s", "tp1.y is negative");
             return;
         }
+        
+        //code 25aug starts here
+        {//using same mutex for the invariant.
+            std::lock_guard<std::mutex> lock(sharedMutex);
+            //cout << "images and attributes being pushed into queues " << endl;
+            camera_imageQueue.push(temp_warped_img);
+            camera_maskQueue.push(mask_warped_gray_img);
+            camera_imageTopLeftQueue.push(tp1);
+        }
+        //code 25aug ends
+        
+        /*uncomment this to get prev working code
         cv::Size s = temp_warped_img.size();
         int rows = s.height;
         int cols = s.width;  
@@ -136,9 +148,9 @@ void cameraSetup::process_3D_Map() {
         //cout <<  "Size of warped Mat is : " <<  rows <<  ", " <<  cols <<  endl;
         //cout <<  "size variable of warped Mat is given as " <<  s <<  endl;        
         //cout << "point coordinates after calculating endpoints are : " << tp1.x + rows << "," << tp1.y + cols << endl;
-        /*Mat temp = finalCameraImage(cv::Rect(1,1,rows,cols));  //creates a pointer to the ROI of finalCameraImage
-        temp_warped_img.copyTo(temp); //use copyTo, do not use assignment operator as the pointer will get changed.
-        */
+        //Mat temp = finalCameraImage(cv::Rect(1,1,rows,cols));  //creates a pointer to the ROI of finalCameraImage
+        //temp_warped_img.copyTo(temp); //use copyTo, do not use assignment operator as the pointer will get changed.
+        
                 
         vector<Point> corners(2); //1 for current camera image and 2 for previous final image
         vector<Size> sizes(2); //1 for current camera image and 2 for previous final image
@@ -167,29 +179,15 @@ void cameraSetup::process_3D_Map() {
                 //split is from (1000+(-15)) to 999 and from 0 to 84, which is , (original width -img1 width - 1).
                 //so Range(985, 1000) and Range(0, 85)
                 //cout << "printing roi img2 : " << endl;
-                /*cout << "w : " << w << endl;
-                cout << "orig_width : " << orig_width << endl;
-                cout << "img2 starts : 0 " << endl;
-                cout << "img2 ends(exclusive) : orig_width-w : " << orig_width-w << endl;
-                cout << "img1 starts : new tp1.x : " <<  tp1.x << endl;
-                cout << "img1 ends(exclusive) : image_x_cols : " << image_x_cols << endl;
-                cout << camera_name << " : temp_warped_img size before split : " << s << endl;*/
                 temp_warped_img(Range::all(), Range(w, orig_width)).copyTo(img2); //deep copy - do this first
                 s2 = img2.size();
-                /*cout << "img2 size : " << s2 << endl;
-                cout << "img1 starts : new tp1.x : " <<  tp1.x << endl;
-                cout << "img1 ends(exclusive) : image_x_cols : " << image_x_cols << endl;*/
                 temp_warped_img = temp_warped_img(Range::all(), Range(0,w)); //overwriting temp_warped_img - do this second
                 s = temp_warped_img.size();
                 
                 //cout << "img1 size : " << s << endl;
                 
                 
-                /*no need for this i guess
-                s.width = w;    //updating width of mask1
-                //for image2            
-                s2.width = orig_width - w;    
-                */     
+
             }
             else{//only 1 mask required
                tp1.x = tp1.x + image_x_cols; //update top left of image 1.     
@@ -279,7 +277,7 @@ void cameraSetup::process_3D_Map() {
             //new code ends here
             
             
-            
+            */ //uncomment ends here but there is another section to uncomment
             /*
             //trying with alpha matte - fails at subtract and multiply.            
             //Issue is that the matrices have to be same size, but the mat object for the new camera image is much lower than the final image. Need to rethink.
@@ -408,6 +406,8 @@ void cameraSetup::process_3D_Map() {
             imshow("finalImage", finalCameraImage);
             resizeWindow("finalImage", 500, 1000);
             waitKey();*/
+            
+            /* //second section of commenting begins here
             if (!finalCameraImage.empty()){
                 //cout << "entered whiletrue loop" << endl;
                 msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", finalCameraImage).toImageMsg(); //bgr8 is blue green red with 8UC3, mono8 for single channel
@@ -424,7 +424,7 @@ void cameraSetup::process_3D_Map() {
                 cout << "final image is empty.." << endl;
             }
             //cout << "---------------------processing done-------------------------------------------------" << this->camera_name << endl;
-        }
+        }*/
     }
     else{
      cout << "undistort has empty data." << endl;   
@@ -438,7 +438,7 @@ void cameraSetup::info_cameraCallBack(const sensor_msgs::CameraInfo::ConstPtr& i
     //cout << "info_cameraCallBack reached." << endl;
     camera_height = inpMsg->height;
     camera_width = inpMsg->width;
-    cout <<  camera_name << ", " <<  camera_height << ", " <<  camera_width <<  endl;   
+    //cout <<  camera_name << ", " <<  camera_height << ", " <<  camera_width <<  endl;   
 }
 
 void cameraSetup::inputImage_cameraCallBack(const sensor_msgs::Image::ConstPtr& inpMsg){
@@ -591,27 +591,42 @@ void cameraSetup::setCameraBlendAreaInPixels(int16_t pixels){
 }
 
 void cameraSetup::popCameraQueue(){
+    int qSize;
     {//popping under the same mutex and lock.
-     //pop only deletes the element in C++, use front to access it first
         std::lock_guard<std::mutex> lock(sharedMutex);
-        while (!camera_imageQueue.empty()){
+        qSize = camera_imageQueue.size();
+        
+    }
+    do{
+        //pop only deletes the element in C++, use front to access it first
+        if (qSize!=0){
+            std::lock_guard<std::mutex> lock(sharedMutex);
             current_image = camera_imageQueue.front();
             current_image_size = current_image.size();
             camera_imageQueue.pop();
+                
+            //since they are locked by a shared Mutex, when the first Q has an object, the other Queues will also have it.
+            current_mask = camera_maskQueue.front();
+            camera_maskQueue.pop();
+            current_tl = camera_imageTopLeftQueue.front();
+            camera_imageTopLeftQueue.pop();
             break;
         }
-        //since they are locked by a shared Mutex, when the first Q has an object, the other Queues will also have it.
-        current_mask = camera_maskQueue.front();
-        camera_maskQueue.pop();
-        current_tl = camera_imageTopLeftQueue.front();
-        camera_imageTopLeftQueue.pop();
-        
+        else{
+            std::lock_guard<std::mutex> lock(sharedMutex);
+            qSize = camera_imageQueue.size();
+        }
     }
+    while(true);
+
 }
+
 
 //Note : This will cause an issue if we parallelise the code. We will have to synchronize it around the finalImage object because all camera objects will be updating the final image, if so.
 cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, sensor_msgs::ImagePtr& finalImageMsg, image_transport::Publisher& finalImagepub, int finalimage_rows, int finalimage_cols)
 :camera_name(name),camera_height(1440), camera_width(2560){
+    //entire constructor is locked by the mutex. Important, else object might be half constructed which can lead to segmentation issues.
+    std::lock_guard<std::mutex> lock(sharedMutex);   
     rotation_matrix = cv::Mat(3, 3, CV_32F);
     //cout << "cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, int finalimage_rows, int finalimage_cols) entered" << endl;
     //Creates subscriber for Camera Info
@@ -621,15 +636,9 @@ cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, 
     
     
     //3 shared variables which form the invariant
-    {
-        //cout << "reached here" << endl;
-        std::lock_guard<std::mutex> lock(sharedMutex);
         finalCameraImage = finalImage;
         msg = finalImageMsg;
         finalimage_publisher = finalImagepub;
-        //cout << "reached here after lock completes" << endl;
-    }
-    
     //<check> - need to change the below to receive from a rostopic later or from a server. Will see.
     /*if (camera_name == "pano_1"){
         setCameraParameters((Mat_<float>(3,3) << 1884.288597944681, 0, 1281.298355259871, 0, 1584.885477343124, 636.5814917534733, 0, 0, 1), (Mat_<float>(1,5) << -0.4173570405287141, 0.1493134654766953, 0.008037288266852087, -0.0007342658995463636, 0), (Mat_<float>(3,3) << 1,0,0,0,1,0,0,0,1));

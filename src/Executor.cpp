@@ -17,16 +17,16 @@ const int CONST_NO_OF_PIXELS_Y_ROWS = 500;
 const int CONST_NO_OF_PIXELS_X_COLS = 1000;
 //<check - how do we get the number of cameras?>
 const int NO_OF_CAMERAS = 5;
-
 Mat finalImage(CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS, CV_8UC3, Scalar::all(0));
 sensor_msgs::ImagePtr msg;
 image_transport::Publisher finalimage_publisher;
 vector<cameraSetup*> cameraVector; //<check>
 vector<string> camera_names;
 vector<thread> camera_threads;
-std::mutex cameraSetup::sharedMutex; //shared across all objects/cameras
+int blend_type = cv::detail::Blender::MULTI_BAND; ///Blender::MULTI_BAND or Blender::FEATHER or Blender::NO
+cv::Ptr<cv::detail::Blender> blender; //pointer for blender as from sample in opencv
 
-//This causes issue if we use MultiThreadedSpinner as the main thread will be blocked. So use AsyncSpinner. AsyncSpinner also has an issue that it will process the dynamic callback only when 
+//This causes issue if we use MultiThreadedSpinner as the main thread will be blocked. So use AsyncSpinner. AsyncSpinner also has an issue that it will process the dynamic callback only when callback q is the global queue.
 //note : if we have more than 6 cameras, we need to add an entry to the cfg file.
 void dynamicConfigurecallback(image_warper::cameraDelayConfig &config, uint32_t level) {
         double_t delay;
@@ -189,68 +189,162 @@ int main(int argc, char** argv){
     ros::AsyncSpinner async_spinner(0);
     async_spinner.start();
     cout << "reached here" << endl;
+    //Mutex is non-copyable and non-movable in C++. So we cannot use an assignment operator. Hence have accessed it from a static method using pointers.
+    
+    std::mutex* sharedMainMutex = cameraSetup::getSharedMutex(); //shared across all objects/cameras
+    //check redo this.
+    //if (sharedMainMutex == nullptr){
+    //    ROS_ERROR("Shared Mutex is NULL. Exiting..");
+    //        return;
+    //}
     while (ros::ok){//ros::ok becomes false when node is shut down.
-        
-        
-        //blending code starts here       
+        //blending code starts here    
+        cout << "." << endl;
+        vector<Mat> cameraImages;
+        vector<Mat> cameraImageMasks;
+        vector<Point> corners;  //tl corners of all images
+        vector<Size> sizes;     //sizes of all images
         for (int i = 0; i < NO_OF_CAMERAS; i++){
             //all images, masks, tl corners and sizes will get saved to member Variables for each camera.
+            //use this wherever you read the camera images, corners n sizes.
+            //<check> will this cause a deadlock bcos c++ docs say twice locking by same thread may deadlock. Maybe i am misunderstanding?
             cameraVector[i]-> popCameraQueue();
-        }
-        {   //use this wherever you read the camera images, corners n sizes.
-            std::lock_guard<std::mutex> lock(sharedMutex);
-        }
-            blend_type = cv::detail::Blender::MULTI_BAND;
+            {
+                std::lock_guard<std::mutex> lock(*sharedMainMutex);
+                //cout << "camera name : " << cameraVector[i]->camera_name << endl;
+                //cout << "cameraVector[i]->current_image_size " << cameraVector[i]->current_image_size << endl;
+                //cout << "cameraVector[i]-> current_mask size: " << cameraVector[i]-> current_mask.size() << endl;
+                //cout << "cameraVector[i]->current_tl : " << cameraVector[i]->current_tl << endl;
+                int rows = cameraVector[i]->current_image_size.height;
+                int cols = cameraVector[i]->current_image_size.width; 
+                int w = 0;
+                Point tp1 = cameraVector[i]->current_tl;
+                Point tp2(0,0); //optional for split images for negative coordinates.
+                bool second_mask_reqd = false; //true if tp1.x < 0 and if it gets split.
+                Mat img2, img2_s; //optional for split images for negative coordinates.
+                Mat mask2_warped_gray_img; //optional for split images for negative coordinates.
+                cv::Size s2 = cameraVector[i]->current_image_size;
+                int orig_width = cameraVector[i]->current_image_size.width; //copying for later use
+                if (tp1.x < 0){//manually changed from neg to 0 - affects pano_2 it seems
+                //cout << "last point of image as per this is : tp1.x + orig_width " << tp1.x + orig_width << endl;
+                    if (tp1.x + orig_width > 0){//2 masks required
+                        //tp1.x = tp1.x + image_x_cols;
+                        second_mask_reqd = true;
+                        //img1 is the negative part being processed, img2 is from 0,0.
+                        //for image1
+                        //note use the image_x_cols only for updating points.
+                        //if we use it for getting parts of image, it will go out of bounds, as our image is much smaller than the panorama.
+                        w = -1 * tp1.x; //width is absolute value of tp1.x
+                        tp1.x = tp1.x + CONST_NO_OF_PIXELS_X_COLS; //get top left of image 1. tp1.y remains same as before.
+                        tp2.x = 0;                    //tl of image 2 starts from 0.
+                        tp2.y = tp1.y;                //tp2.y remains same as tp1.y.
+                        //For range, left end is inclusive, rt end is exclusive, and rows begin from 0, not 1.
+                        //so here lets say tp1.x = -15 and original width = 100. so, img1 width = 15. img2 width = 100-15 = 85.
+                        //split is from (1000+(-15)) to 999 and from 0 to 84, which is , (original width -img1 width - 1).
+                        //so Range(985, 1000) and Range(0, 85)
+                        //cout << "printing roi img2 : " << endl;
+                        /*cout << "w : " << w << endl;
+                        cout << "orig_width : " << orig_width << endl;
+                        cout << "img2 starts : 0 " << endl;
+                        cout << "img2 ends(exclusive) : orig_width-w : " << orig_width-w << endl;
+                        cout << "img1 starts : new tp1.x : " <<  tp1.x << endl;
+                        cout << "img1 ends(exclusive) : image_x_cols : " << image_x_cols << endl;
+                        cout << camera_name << " : temp_warped_img size before split : " << s << endl;*/
+                        cameraVector[i]->current_image(Range::all(), Range(w, orig_width)).copyTo(img2); //deep copy - do this first
+                        s2 = img2.size();
+                        /*cout << "img2 size : " << s2 << endl;
+                        cout << "img1 starts : new tp1.x : " <<  tp1.x << endl;
+                        cout << "img1 ends(exclusive) : image_x_cols : " << image_x_cols << endl;*/
+                        //<check> if this works.
+                        cameraVector[i]->current_image = cameraVector[i]->current_image(Range::all(), Range(0,w)); //overwriting temp_warped_img - do this second
+                        cameraVector[i]->current_image_size = cameraVector[i]->current_image.size();
+                        mask2_warped_gray_img = cameraVector[i]->current_mask(Range::all(), Range(w,orig_width));
+                        cameraVector[i]->current_mask = cameraVector[i]->current_mask(Range::all(), Range(0,w));
+                        //do from here
+                        //cout << "img1 size : " << s << endl;
+                        /*no need for this i guess
+                        s.width = w;    //updating width of mask1
+                        //for image2            
+                        s2.width = orig_width - w;    
+                        */     
+                    }
+                    else{//only 1 mask required
+                    tp1.x = tp1.x + CONST_NO_OF_PIXELS_X_COLS; //update top left of image 1.     
+                    }
+                }
+                cameraVector[i]->current_tl = tp1;
+                corners.push_back(cameraVector[i]->current_tl); //tp1 is same as current_tl
+                sizes.push_back(cameraVector[i]->current_image_size);
+                cameraImages.push_back(cameraVector[i]->current_image);
+                cameraImageMasks.push_back(cameraVector[i]->current_mask);
+                if (second_mask_reqd){
+                    corners.push_back(tp2);
+                    sizes.push_back(s2);
+                    cameraImages.push_back(img2);
+                    cameraImageMasks.push_back(mask2_warped_gray_img);
+                }
+                //<check> have to split masks too.
+                
+            }
+        }//end of looping through cameras.
+
+            blend_type = cv::detail::Blender::FEATHER;
             blender = cv::detail::Blender::createDefault(blend_type, false); //false given for CUDA processing
             Size dst_sz = cv::detail::resultRoi(corners, sizes).size();
-            cout << "camera_name : " << camera_name << " : dst_sz : " << dst_sz << endl;
-            Rect resultROI = cv::detail::resultRoi(corners, sizes);
-            Mat ROI = finalCameraImage(resultROI);
+            //Rect resultROI = cv::detail::resultRoi(corners, sizes);
+            //Mat ROI = finalCameraImage(resultROI);
             //imshow("resultROI", ROI);
             //change this to global variable
-            float blend_strength = 1;
+            float blend_strength = 10;
             float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
             //reference : https://docs.opencv.org/3.4/d9/dd8/samples_2cpp_2stitching_detailed_8cpp-example.html#a53
             if (blend_type == cv::detail::Blender::FEATHER){
                 cv::detail::FeatherBlender* feather_blender = dynamic_cast<cv::detail::FeatherBlender*>(blender.get());
-                //feather_blender->setSharpness(1.f/blend_width);
-                feather_blender->setSharpness(1);
+                feather_blender->setSharpness(1.f/blend_width);
+                //feather_blender->setSharpness(1);
                 //cout << "Feather blender, sharpness: " << feather_blender->sharpness();                
             }
             else if (blend_type == cv::detail::Blender::MULTI_BAND){
                 cv::detail::MultiBandBlender* multiband_blender = dynamic_cast<cv::detail::MultiBandBlender*>(blender.get());
-                //multiband_blender-> setNumBands(static_cast<int>(ceil(log(blend_width)/log(2.)) - 1.));
-                multiband_blender->setNumBands(1);
+                multiband_blender-> setNumBands(static_cast<int>(ceil(log(blend_width)/log(2.)) - 1.));
+                //multiband_blender->setNumBands(1);
                 //cout << camera_name << endl;
                 //cout << "Multi-band blender, number of bands: " << multiband_blender->numBands();
             }
             else {//this should never be invoked
              ROS_ERROR("Error : %s", "Blend type is invalid.");
-             return;
+             break;
+             //return;
             }
-            
+
             blender->prepare(corners, sizes);
-            //finalCameraImage_mask - spans entire image
-            temp_warped_img.convertTo(temp_warped_img_s, CV_16SC3);
-            finalCameraImage.convertTo(finalCameraImage_s, CV_16SC3);
-            blender->feed(finalCameraImage_s, finalCameraImage_mask, corners[0]);
-            if (second_mask_reqd){
-                img2.convertTo(img2_s, CV_16SC3);
-                //blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[1]);
-                //blender->feed(img2_s, mask_warped_gray_img, corners[2]);
-                
-                //blender->feed(temp_warped_img_s, Mat(temp_warped_img_s.size(), CV_8UC1, Scalar::all(255)), corners[1]);
-                //blender->feed(img2_s, Mat(img2.size(), CV_8UC1, Scalar::all(255)), corners[2]);
-                blender->feed(temp_warped_img_s, mask_warped_gray_img(Range::all(), Range(0,w)), corners[1]);
-                blender->feed(img2_s, mask_warped_gray_img(Range::all(), Range(w,orig_width)), corners[2]);
+            Mat finalCameraImage_s, result_mask; //Mats for blended result
+            {   //use this wherever you read the camera images, corners n sizes.
+                std::lock_guard<std::mutex> lock(*sharedMainMutex);
+                //cameraImages can have 2 split images from same camera image. It covers all cameras.
+                for (int i = 0; i < cameraImages.size(); i++){
+                    (cameraImages[i]).convertTo(cameraImages[i], CV_16SC3);
+                    //try printing tl and size here and see.
+                    blender->feed(cameraImages[i], cameraImageMasks[i], corners[i]);
+                }
+                blender->blend(finalCameraImage_s, result_mask);
+            }
+            finalCameraImage_s.convertTo(finalImage, CV_8UC3); //converting back to Unsigned
+            cout << "finalCameraImage : " << finalImage.size().height << "," << finalImage.size().width << endl;
+            if (!finalImage.empty()){
+                //cout << "final Image not empty" << endl;
+                msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", finalImage).toImageMsg(); //bgr8 is blue green red with 8UC3
+                if ((msg != nullptr) && (finalimage_publisher!= NULL)){
+                    finalimage_publisher.publish(msg);
+                    //cout << "final image published.." << endl;
+                }   
+                else{
+                cout << "Image publishing condition failed for this iteration." << endl;   
+                }
             }
             else{
-                blender->feed(temp_warped_img_s, mask_warped_gray_img, corners[1]);
+                cout << "final image is empty.." << endl;
             }
-            Mat result_mask;
-            blender->blend(finalCameraImage_s, result_mask);
-            finalCameraImage_s.convertTo(finalCameraImage, CV_8UC3); //converting back to Unsigned
-            //cout << "finalCameraImage : " << finalCameraImage.size().height << "," << finalCameraImage.size().width << endl;
             
         //blending code ends here
         
