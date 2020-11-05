@@ -597,22 +597,41 @@ void cameraSetup::popCameraQueue(){
         qSize = camera_imageQueue.size();
         
     }
+    int counter = 0;
+    //bool 
     do{
         //pop only deletes the element in C++, use front to access it first
         if (qSize!=0){
             std::lock_guard<std::mutex> lock(sharedMutex);
             current_image = camera_imageQueue.front();
+            cout << "current_image.type() : "<< type2str(current_image.type()) << endl;
             current_image_size = current_image.size();
             camera_imageQueue.pop();
                 
             //since they are locked by a shared Mutex, when the first Q has an object, the other Queues will also have it.
             current_mask = camera_maskQueue.front();
+            cout << "current_mask.type() : "<< type2str(current_mask.type()) << endl;
             camera_maskQueue.pop();
             current_tl = camera_imageTopLeftQueue.front();
             camera_imageTopLeftQueue.pop();
+            prev_tl = current_tl; //to be used for next iteration
+            prev_image_size = current_image_size; //to be used for next iteration
             break;
         }
         else{
+            counter++; //local variable
+/*          
+            if (counter==100){//sends a black image if no frame received for 100 times of loop
+                std::lock_guard<std::mutex> lock(sharedMutex);
+                current_image_size = prev_image_size;
+                current_tl = prev_tl;
+                int rows = current_image_size.height;
+                int cols = current_image_size.width;                 
+                current_image = Mat(rows, cols, CV_8UC3, Scalar(0,0,0)); //8uc3
+                current_mask = Mat(rows, cols, CV_8UC1, Scalar(1)); //8uc1
+                break;
+            }
+*/
             std::lock_guard<std::mutex> lock(sharedMutex);
             qSize = camera_imageQueue.size();
         }
@@ -647,6 +666,7 @@ cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, 
         setCameraParameters((Mat_<float>(3,3) << 1884.288597944681, 0, 1281.298355259871, 0, 1584.885477343124, 636.5814917534733, 0, 0, 1), (Mat_<float>(1,5) << -0.4173570405287141, 0.1493134654766953, 0.008037288266852087, -0.0007342658995463636, 0), (Mat_<float>(3,3) << 0.3090170,  0.0000000,  -0.9510565, 0,1,0, 0.9510565,  0.0000000,  0.3090170));
     }*/
     //<check> have to change this
+    /* this is for old 5 camera set
     if (camera_name == "pano_1"){
         setIntrinsics((Mat_<float>(3,3) << 1884.288597944681, 0, 1281.298355259871, 0, 1584.885477343124, 636.5814917534733, 0, 0, 1));
         setDistortionCoefficients((Mat_<float>(1,5) << -0.4173570405287141, 0.1493134654766953, 0.008037288266852087, -0.0007342658995463636, 0));
@@ -667,6 +687,34 @@ cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, 
         setIntrinsics((Mat_<float>(3,3) << 1888.512798190576, 0, 1212.026930077162, 0, 1601.169599805217, 732.2253364795896, 0, 0, 1));
         setDistortionCoefficients((Mat_<float>(1,5) << -0.3836906545283715, 0.1237841545472208, -0.001575181292988737, 0.01157441927076925, 0));
     }
+    */
+    //for new camera set.
+    if (camera_name == "pano_1"){
+        setIntrinsics((Mat_<float>(3,3) << 1924.05428,0,1326.89046,0, 1922.47413, 660.37084, 0,0,1));
+        setDistortionCoefficients((Mat_<float>(1,5) << -0.403924, 0.125745, 0.001224, -0.001637, 0));
+    }
+    else if (camera_name == "pano_2"){
+        setIntrinsics((Mat_<float>(3,3) << 1827.37403, 0, 1295.73966, 0, 1544.94464, 677.26849, 0, 0, 1));
+        setDistortionCoefficients((Mat_<float>(1,5) << -0.402708, 0.129145, 0.001809, -0.001750, 0));
+    }
+    else if (camera_name == "pano_3"){
+        setIntrinsics((Mat_<float>(3,3) << 1903.74564,0,1290.99875, 0,  1902.30552, 603.91738, 0, 0, 1));
+        setDistortionCoefficients((Mat_<float>(1,5) << -0.389676, 0.106579, 0.004054, -0.002224, 0));
+    }
+    else if (camera_name == "pano_4"){
+        setIntrinsics((Mat_<float>(3,3) << 1894.62387,0,1254.10863, 0,  1890.51009,681.91008, 0, 0, 1));
+        setDistortionCoefficients((Mat_<float>(1,5) << -0.386955, 0.112251, -0.002492, -0.000816, 0));
+    }
+    else if (camera_name == "pano_5"){
+        setIntrinsics((Mat_<float>(3,3) << 1858.65666,0,1293.11574, 0,  1857.20712,735.85572, 0, 0, 1));
+        setDistortionCoefficients((Mat_<float>(1,5) << -0.378799, 0.104279, -0.000161, -0.001951, 0));
+    }
+    else{
+        setIntrinsics((Mat_<float>(3,3) << 1870.61482,0,  1283.57924, 0,1870.00689,703.55448, 0, 0, 1));
+        setDistortionCoefficients((Mat_<float>(1,5) << -0.385998, 0.113376, -0.002907, -0.000099, 0));
+    }
+    
+    
     tfBuffer = new tf2_ros::Buffer(ros::Duration(10), false);
     tfListener = new tf2_ros::TransformListener(*tfBuffer);  //for transform.
     image_y_rows = finalimage_rows;

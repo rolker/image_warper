@@ -60,6 +60,7 @@ public:
     cv::Mat current_mask;
     cv::Point current_tl;
     cv::Size current_image_size;
+
     
 private:
     // Variables declaration
@@ -94,7 +95,10 @@ private:
     cv::Mat dummy_white_Mat;
     cv::Mat undistort_dummy_white_Mat;
     static std::mutex sharedMutex; //shared across all objects/cameras
-
+    //saving previous tl, image_size in case we dont get camera image for current iteration. So we create a black image with prev tl, prev img size and use that for building the panorama.
+    cv::Point prev_tl;
+    cv::Size prev_image_size;
+    
     //Methods declaration
     bool checkCameraResolution();   //checks resolution of the camera if its valid.
     bool checkCameraData();         //checks input camera data if its valid.

@@ -16,10 +16,12 @@ using namespace cv;
 const int CONST_NO_OF_PIXELS_Y_ROWS = 500;
 const int CONST_NO_OF_PIXELS_X_COLS = 1000;
 //<check - how do we get the number of cameras?>
-const int NO_OF_CAMERAS = 5;
+const int NO_OF_CAMERAS = 6;
 Mat finalImage(CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS, CV_8UC3, Scalar::all(0));
 sensor_msgs::ImagePtr msg;
 image_transport::Publisher finalimage_publisher;
+ros::Publisher finalimage_publisher_trial;
+
 vector<cameraSetup*> cameraVector; //<check>
 vector<string> camera_names;
 vector<thread> camera_threads;
@@ -69,6 +71,7 @@ void dynamicConfigurecallback(image_warper::cameraDelayConfig &config, uint32_t 
                 delay = config.transformation_delay_cam_6;
                 break;
             }
+            
             default :
             {    
                 cout << "default case reached" << endl;
@@ -158,6 +161,7 @@ int main(int argc, char** argv){
     //image_transport::ImageTransport imgTransp(nodeHandler2_pub);
     image_transport::ImageTransport imgTransp(nodeHandler1);
     finalimage_publisher = imgTransp.advertise("finalimage/image_raw", 1);
+    finalimage_publisher_trial = nodeHandler1.advertise<sensor_msgs::Image> ("finalimage_trial/image_raw", 1);
     //IMportant, we have to pass the callable as &callablename, ekse tuple error is coming.
     //std::thread thread1(&callableFunc,"thread1", std::ref(nodeHandler1), std::ref(finalImage), std::ref(msg), std::ref(finalimage_publisher), sharedMutexPtr, CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS);
     for (int i = 0; i < NO_OF_CAMERAS; i++){
@@ -197,9 +201,14 @@ int main(int argc, char** argv){
     //    ROS_ERROR("Shared Mutex is NULL. Exiting..");
     //        return;
     //}
+    finalImage.at<int>(0,0) = (255, 255, 255); //point on tl is mad white so that blender wont truncate.
+    finalImage.at<int>(499,999) = (255, 255, 255); //point on br is made white
+    //cout << "finalImage tl value : " << finalImage(Range(0,2), Range(0,2)) << endl;
+    cout << "final size : " << finalImage.size() << endl;
     while (ros::ok){//ros::ok becomes false when node is shut down.
         //blending code starts here    
         cout << "." << endl;
+        //cout << "cameraVector.size() " << cameraVector.size() << endl;
         vector<Mat> cameraImages;
         vector<Mat> cameraImageMasks;
         vector<Point> corners;  //tl corners of all images
@@ -318,7 +327,10 @@ int main(int argc, char** argv){
             }
 
             blender->prepare(corners, sizes);
-            Mat finalCameraImage_s, result_mask; //Mats for blended result
+            Mat finalCameraImage_s, finalCameraImage, result_mask; //Mats for blended result
+            int top_left_final_image = 0;
+            //create a min priority Q.
+            std::priority_queue<int, vector<int>, greater<int>> tl_y_coord_Queue;
             {   //use this wherever you read the camera images, corners n sizes.
                 std::lock_guard<std::mutex> lock(*sharedMainMutex);
                 //cameraImages can have 2 split images from same camera image. It covers all cameras.
@@ -326,16 +338,41 @@ int main(int argc, char** argv){
                     (cameraImages[i]).convertTo(cameraImages[i], CV_16SC3);
                     //try printing tl and size here and see.
                     blender->feed(cameraImages[i], cameraImageMasks[i], corners[i]);
+                    cout << "Point "<< i << " is : " << corners[i] << endl;
+                    cout << "x is " << corners[i].x << endl;
+                    tl_y_coord_Queue.push(corners[i].y);
                 }
+                top_left_final_image = tl_y_coord_Queue.top();
                 blender->blend(finalCameraImage_s, result_mask);
             }
-            finalCameraImage_s.convertTo(finalImage, CV_8UC3); //converting back to Unsigned
-            cout << "finalCameraImage : " << finalImage.size().height << "," << finalImage.size().width << endl;
+            finalCameraImage_s.convertTo(finalCameraImage, CV_8UC3); //converting back to Unsigned
+            if (!result_mask.empty()){
+                cout << "result mask size ; " << result_mask.size() << endl;
+                cout << "finalCameraImage size ; " << finalCameraImage.size() << endl;
+                //finalCameraImage.copyTo(finalImage, result_mask); 
+/*                //trying with alpha mattes.
+                // Multiply the foregrounds with the alpha mattes
+                multiply(result_mask, finalCameraImage, finalCameraImage);
+                Mat beta;
+                // Multiply the background with ( 1 - alpha)
+                subtract(beta, result_mask, beta);
+                beta.convertTo(beta, CV_32FC3);    //do we need this?         
+                multiply(beta, finalImage, finalImage);
+                // Add the masked foreground and background.
+                add(finalCameraImage, finalImage, finalImage);  
+*/              
+                cout << "finalImage size before copy; " << finalImage.size() << endl;
+                cout << "finalImage top left is : " << top_left_final_image << endl;
+                finalCameraImage.copyTo(finalImage(cv::Rect(0,top_left_final_image, finalCameraImage.cols, finalCameraImage.rows)));
+                cout << "finalImage size ; " << finalImage.size() << endl;
+            }
+            cout << "finalImage : " << finalImage.size().height << "," << finalImage.size().width << endl;
             if (!finalImage.empty()){
                 //cout << "final Image not empty" << endl;
                 msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", finalImage).toImageMsg(); //bgr8 is blue green red with 8UC3
                 if ((msg != nullptr) && (finalimage_publisher!= NULL)){
                     finalimage_publisher.publish(msg);
+                    finalimage_publisher_trial.publish(msg);
                     //cout << "final image published.." << endl;
                 }   
                 else{
@@ -349,8 +386,12 @@ int main(int argc, char** argv){
         //blending code ends here
         
     }
-//    ros::waitForShutdown(); //AsyncSpinner stops when node shuts down.
-
+    
+    for (int i = 0; i < NO_OF_CAMERAS; i++){
+        delete cameraVector[i];
+        //cout << "deleting ... " << endl;
+    }
+    ros::waitForShutdown(); //AsyncSpinner stops when node shuts down.
     //below final image publisher code has been shifted to within cameraSetup
     //while(ros::ok()){
 //         if (!finalImage.empty()){
