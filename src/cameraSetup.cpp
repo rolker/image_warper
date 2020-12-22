@@ -142,6 +142,7 @@ void cameraSetup::process_3D_Map() {
             camera_imageQueue.push(temp_warped_img);
             camera_maskQueue.push(mask_warped_gray_img);
             camera_imageTopLeftQueue.push(tp1);
+            camera_imageIdQueue.push(global_image_id_per_camera); //this will be missing some ids, since some may not reach this point.
         }
         //code 25aug ends
         
@@ -449,6 +450,10 @@ void cameraSetup::info_cameraCallBack(const sensor_msgs::CameraInfo::ConstPtr& i
 }
 
 void cameraSetup::inputImage_cameraCallBack(const sensor_msgs::Image::ConstPtr& inpMsg){
+    global_image_id_per_camera = (global_image_id_per_camera +1)%10000; //reverts to 0 once it reaches 10000 frames.
+    //there is a chance that some frames never reach the processing part.
+    //So we need to remove those later from other cameras.
+    //cout << "global_image_id_per_camera received as initial input: " << camera_name << "-" << global_image_id_per_camera << endl;
     //cout << "inputImage_cameraCallBack reached." << endl;
     //cout <<  camera_name << endl;
     // First convert ROS image message to Open CV Mat using CVbridge. - if we need to modify the data,  we need to copy this. I am only referencing the original data here to prevent usage of too much memory.
@@ -562,14 +567,14 @@ void cameraSetup::setCameraBlendAreaInPixels(int16_t pixels){
     pixels_to_blend = pixels;
 }
 
-void cameraSetup::popCameraQueue(){
+int cameraSetup::popCameraQueue(){
     int qSize;
     {//popping under the same mutex and lock.
         std::lock_guard<std::mutex> lock(sharedMutex);
         qSize = camera_imageQueue.size();
         
     }
-    int counter = 0;
+    //int counter = 0;
     //bool 
     do{
         //pop only deletes the element in C++, use front to access it first
@@ -581,9 +586,12 @@ void cameraSetup::popCameraQueue(){
             camera_imageQueue.pop();
                 
             //since they are locked by a shared Mutex, when the first Q has an object, the other Queues will also have it.
+            current_image_id = camera_imageIdQueue.front();
+            camera_imageIdQueue.pop();
+            
             current_mask = camera_maskQueue.front();
-            //cout << "current_mask.type() : "<< type2str(current_mask.type()) << endl;
             camera_maskQueue.pop();
+
             current_tl = camera_imageTopLeftQueue.front();
             camera_imageTopLeftQueue.pop();
             prev_tl = current_tl; //to be used for next iteration
@@ -591,7 +599,7 @@ void cameraSetup::popCameraQueue(){
             break;
         }
         else{
-            counter++; //local variable
+            //counter++; //local variable
 /*          
             if (counter==100){//sends a black image if no frame received for 100 times of loop
                 std::lock_guard<std::mutex> lock(sharedMutex);
@@ -609,7 +617,7 @@ void cameraSetup::popCameraQueue(){
         }
     }
     while(true);
-
+    return current_image_id;
 }
 
 

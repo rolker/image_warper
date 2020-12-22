@@ -107,6 +107,22 @@ void callableFunc(std::string name, ros::NodeHandle& handle, cv::Mat& image, sen
 //bool videoStreamCallbackForVR(){
 //    }
 
+void checkSyncUpofPoppedQueues(int imageIdToSyncOn){
+ //cout << "camera image id : " << camera_name << "-" << current_image_id << endl;
+    for (int i = 0; i < NO_OF_CAMERAS; i++){
+        //if current image id is not same as image id to sync on, keep on popping.
+        while(true){
+            if (cameraVector[i]->current_image_id < imageIdToSyncOn){
+                cout << "popping : " << cameraVector[i]-> camera_name << endl;
+                cameraVector[i]-> popCameraQueue();
+            }
+            else{
+                break;                
+            }
+        }
+        
+    }    
+}
 
 int main(int argc, char** argv){
     /*Below code is to try open a video file and convert to a ROS topic.
@@ -217,17 +233,26 @@ int main(int argc, char** argv){
         vector<Mat> cameraImageMasks;
         vector<Point> corners;  //tl corners of all images
         vector<Size> sizes;     //sizes of all images
+        //lets pop 1 image each and then check if all are same ids.
+        priority_queue<int> imageIds;
+        for (int i = 0; i < NO_OF_CAMERAS; i++){
+            int id = cameraVector[i]-> popCameraQueue();
+            imageIds.push(id);
+        }
+        //whatever is the highest value of image id, we will sync all images to that.
+        checkSyncUpofPoppedQueues(imageIds.top());
         for (int i = 0; i < NO_OF_CAMERAS; i++){
             //all images, masks, tl corners and sizes will get saved to member Variables for each camera.
             //use this wherever you read the camera images, corners n sizes.
             //<check> will this cause a deadlock bcos c++ docs say twice locking by same thread may deadlock. Maybe i am misunderstanding? - it deadlocks if i nest the function within lock.
-            cameraVector[i]-> popCameraQueue();
+            
             {
                 std::lock_guard<std::mutex> lock(*sharedMainMutex);
                 //cout << "camera name : " << cameraVector[i]->camera_name << endl;
                 //cout << "cameraVector[i]->current_image_size " << cameraVector[i]->current_image_size << endl;
                 //cout << "cameraVector[i]-> current_mask size: " << cameraVector[i]-> current_mask.size() << endl;
                 //cout << "cameraVector[i]->current_tl : " << cameraVector[i]->current_tl << endl;
+                //cout << "Processing : cameraVector[i]->current_image_id : " << cameraVector[i]->current_image_id << endl;
                 int rows = cameraVector[i]->current_image_size.height;
                 int cols = cameraVector[i]->current_image_size.width; 
                 int w = 0;

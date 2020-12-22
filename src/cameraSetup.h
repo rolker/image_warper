@@ -46,7 +46,7 @@ public:
     ~cameraSetup();
     void setCameraTransformDelay(double_t delay);
     void setCameraBlendAreaInPixels(int16_t pixels);
-    void popCameraQueue();
+    int popCameraQueue();
     static std::mutex* getSharedMutex(){//public method which returns the static mutex - may need to change this concept.
      return &sharedMutex;   
     }
@@ -60,7 +60,9 @@ public:
     cv::Mat current_mask;
     cv::Point current_tl;
     cv::Size current_image_size;
-
+    int current_image_id;
+    
+    int global_image_id_per_camera = 0;//going to give an image id. this will reset back to 0 once it reaches 10000, so that it doesnt consume too much memory. Some of these may be lost during processing.
     
 private:
     // Variables declaration
@@ -78,7 +80,7 @@ private:
     std::queue<cv::Mat> camera_imageQueue;
     std::queue<cv::Mat> camera_maskQueue;
     std::queue<cv::Point> camera_imageTopLeftQueue;
-    
+    std::queue<int> camera_imageIdQueue;
     //This is very important. The TransformListener has to be declared as class or global variable. It needs time.
     //As per documentation,  The TransformListener object should be scoped to persist otherwise its cache will be unable to fill and almost every query will fail.Once the listener is created, it starts receiving tf2 transformations over the wire, and buffers them for up to 10 seconds.
     tf2_ros::TransformListener* tfListener;
