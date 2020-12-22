@@ -33,7 +33,7 @@ bool cameraSetup::calculateRotationMatrix(ros::Time capture_time){//if there is 
     //tf_Subscriber = handle.subscribe("/tf",10, &cameraSetup::tf_cameraCallBack, this);
     //tf_static_Subscriber = handle.subscribe("/tf_static",10, &cameraSetup::tf_static_cameraCallBack, this);
     //<check> is there a tf2 subscriber??
-    geometry_msgs::TransformStamped transformStamped;
+    geometry_msgs::TransformStamped transformStampedValue;
     tf2::Quaternion q_value;
     tf2::Quaternion scalar(0.7071068, 0, 0, 0.7071068); //- about x axis
     //tf2::Quaternion scalar(0, 0.7071068, 0, 0.7071068); //- about y axis
@@ -43,14 +43,20 @@ bool cameraSetup::calculateRotationMatrix(ros::Time capture_time){//if there is 
         //parameters are target frame, source frame, time at which we want to transform(Time(0) is latest transform.), duration before timeout.
         //transformStamped - will get us the translation and rotation. I am using the rotation for warp. Not using translation currently.
         //transformStamped.transform.translation and transformStamped.transform.rotation
-        transformStamped = tfBuffer->lookupTransform("north_up_base_link" , camera_name + "_optical", capture_time+ros::Duration(camera_transform_delay));
+        //transformStampedValue = tfBuffer->lookupTransform("north_up_base_link" , camera_name + "_optical", capture_time+ros::Duration(camera_transform_delay));
+        if (!tfBuffer->canTransform("north_up_base_link" , camera_name + "_optical", ros::Time(capture_time+ros::Duration(camera_transform_delay)), ros::Duration(10))){
+            return false;   //if this cannot be done, then return false immediately.
+        }
+        transformStampedValue = tfBuffer->lookupTransform("north_up_base_link" , camera_name + "_optical", ros::Time(capture_time+ros::Duration(camera_transform_delay)));
         //convert msg into a quartenion - do we need to consider only the rotation part here by using transformStamped.transform.rotation? - yes.
-        tf2::convert(transformStamped.transform.rotation , q_value);
+        tf2::convert(transformStampedValue.transform.rotation , q_value);
         q_value = scalar * q_value;
+//        cout << "q value.x " << q_value.x << endl;
         q_value.normalize();
         tf2::Matrix3x3 matrix;
         tf2::Vector3 dvec;
         matrix.setRotation(q_value);
+        //cout << "q value.x " << q_value.x << endl;
         //cout << "rotation matrix before conversion of " + camera_name + " is : " << rotation_matrix << endl;
         for (int i=0; i< 3; i++){
             //cout << "row i is : " << matrix.getRow(i) << endl; // printing this does not work, it will give junk chars.
@@ -64,6 +70,7 @@ bool cameraSetup::calculateRotationMatrix(ros::Time capture_time){//if there is 
         
         //cout << "rotation matrix of " + camera_name + " is : " << rotation_matrix << endl;
         //<check> how to add Eigen/Geometry - it might be very helpful later
+        //cout << "transformStamped calculated for : " << camera_name << endl;
         return true;
     }
     catch (tf2::TransformException &ex) {
@@ -460,8 +467,6 @@ void cameraSetup::inputImage_cameraCallBack(const sensor_msgs::Image::ConstPtr& 
     if ((checkCameraResolution()) && (checkCameraData())) {
         //cout << "inputImage_cameraCallBack reached. - 1" << endl;
         bool success = calculateRotationMatrix(time_of_capture);
-        //cout << "success of calculateRotationMatrix : " << success << endl;
-        //cout << "success of checkCameraParameters : " << checkCameraParameters() << endl;
         /*namedWindow("cam1_distorted", WINDOW_AUTOSIZE);
         imshow("cam1_distorted", cam_data);*/
         //last parameter (optional), newCameraMatrix – Camera matrix of the distorted image. 
@@ -469,32 +474,16 @@ void cameraSetup::inputImage_cameraCallBack(const sensor_msgs::Image::ConstPtr& 
         //used if we want a subset of resulting image.
         //<change this>
         if (checkCameraParameters() && success){//checks if intrinsics, distortion coefficients and rotation matrix has been set and the parameters havent been set before.
-            //cout << "inputImage_cameraCallBack reached. - 2" << endl;
-            //<check> have to change below to setCameraParameters
-            //setCameraParameters((Mat_<float>(3,3) << 1884.288597944681, 0, 1281.298355259871, 0, 1584.885477343124, 636.5814917534733, 0, 0, 1), (Mat_<float>(1,5) << -0.4173570405287141, 0.1493134654766953, 0.008037288266852087, -0.0007342658995463636, 0), rotation_matrix);
             setRotationMatrix(rotation_matrix);
-            //setRotationMatrix((Mat::eye(3, 3, CV_32F)));
-            /*if (camera_name == "pano_1")//y and x-axis 90deg
-                setRotationMatrix((Mat_<float>(3,3) << 0.5000000,  0.5000000,  0.7071068, 0.5000000,  0.5000000, -0.7071068, -0.7071068,  0.7071068,  0.0000000));
-                //setRotationMatrix((Mat::eye(3, 3, CV_32F)));
-            else if (camera_name == "pano_2") //x-axis 90deg
-                setRotationMatrix((Mat_<float>(3,3) << 1,0,0,0,0,-1, 0, 1, 0));
-            else if (camera_name == "pano_3")//y-axis 90deg
-                setRotationMatrix((Mat_<float>(3,3) << 0,0,1,0,1,0,-1,0,0));
-            else if (camera_name == "pano_4")//z-axis 90deg
-                setRotationMatrix((Mat_<float>(3,3) << 0,-1,0,1,0,0,0,0,1));
-            else if (camera_name == "pano_5")//y and z-axis 90deg
-                setRotationMatrix((Mat_<float>(3,3) << 0.0000000, -0.7071068,  0.7071068, 0.7071068,  0.5000000,  0.5000000, -0.7071068,  0.5000000,  0.5000000));*/
             // Performing undistort on image.
             cv::Size distort_size = cam_data.size();
             int distort_type = cam_data.type();
-            //cout << "distorted image height : " << distort_size.height << "," << " distorted image width : " << distort_size.width << endl;
-            
+            //cout << "distorted image height : " << distort_size.height << "," << " distorted image width : " << distort_size.width << endl;            
             new_optimal_camera_matrix = getOptimalNewCameraMatrix(camera_intrinsics, camera_dist_coefficients, distort_size, 1);
-            //cout << "new_optimal_camera_matrix : " << new_optimal_camera_matrix;
-            //cout << "camera_intrinsics : " << camera_intrinsics;
+
             undistort(cam_data, undistorted_cam_data, camera_intrinsics, camera_dist_coefficients, new_optimal_camera_matrix);
             //cout << "undistorted image height : " << undistorted_cam_data.size().height << "," << " undistorted image width : " << undistorted_cam_data.size().width << endl;
+
             //I am using a caching scheme here.
             //For the first time, if the data doesnt come in properly,
             //then we have 
@@ -512,31 +501,14 @@ void cameraSetup::inputImage_cameraCallBack(const sensor_msgs::Image::ConstPtr& 
                     ROS_WARN("%s",e.what());
                 }
             }
-            /*newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
-            mapx, mapy = cv2.initUndistortRectifyMap(camera_intrinsics, camera_dist_coefficients, cam_data, new_optimal_camera_matrix, dim, 5)
-            image = cv2.remap(image, mapx, mapy, cv2.INTER_LINEAR)
-
-            x, y, w, h = roi
-            image = image[y:y + h, x:x + w]*/
-
-
             /*cout << "undistort_cam_data type" << type2str(undistorted_cam_data.type()) << endl;
             cout << undistorted_cam_data.type() << endl;
             cout << "cam_data type" << type2str(cam_data.type()) << endl;
             cout << cam_data.type() << endl;*/
-            /*namedWindow("cam1_undistorted", WINDOW_AUTOSIZE);
-            imshow("cam1_undistorted", undistort_cam1_data);
-            waitKey(); //pbly will be better to overwrite the same Mat object  */
             if (!new_optimal_camera_matrix.empty())
                 process_3D_Map();
-            Mat testMat;
-            //
-            undistorted_cam_data.copyTo(testMat, undistort_dummy_white_Mat); //copying using mask
-            //cout << "testMat image height : " << testMat.size().height << "," << " testMat image width : " << testMat.size().width << endl;
         } 
     }
-    //Mat ROI_cam1_data = cam_data(Range(1000, 1005),  Range(1000, 1002));
-    //cout << "ROI_cam1_data is : " <<  ROI_cam1_data <<  endl; 
 }
 
 void cameraSetup::setIntrinsics(const Mat intrinsics){
@@ -604,13 +576,13 @@ void cameraSetup::popCameraQueue(){
         if (qSize!=0){
             std::lock_guard<std::mutex> lock(sharedMutex);
             current_image = camera_imageQueue.front();
-            cout << "current_image.type() : "<< type2str(current_image.type()) << endl;
+            //cout << "current_image.type() : "<< type2str(current_image.type()) << endl;
             current_image_size = current_image.size();
             camera_imageQueue.pop();
                 
             //since they are locked by a shared Mutex, when the first Q has an object, the other Queues will also have it.
             current_mask = camera_maskQueue.front();
-            cout << "current_mask.type() : "<< type2str(current_mask.type()) << endl;
+            //cout << "current_mask.type() : "<< type2str(current_mask.type()) << endl;
             camera_maskQueue.pop();
             current_tl = camera_imageTopLeftQueue.front();
             camera_imageTopLeftQueue.pop();

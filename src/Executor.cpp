@@ -20,13 +20,14 @@ const int NO_OF_CAMERAS = 6;
 Mat finalImage(CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS, CV_8UC3, Scalar::all(0));
 sensor_msgs::ImagePtr msg;
 image_transport::Publisher finalimage_publisher;
-ros::Publisher finalimage_publisher_trial;
 
 vector<cameraSetup*> cameraVector; //<check>
 vector<string> camera_names;
 vector<thread> camera_threads;
 int blend_type = cv::detail::Blender::MULTI_BAND; ///Blender::MULTI_BAND or Blender::FEATHER or Blender::NO
 cv::Ptr<cv::detail::Blender> blender; //pointer for blender as from sample in opencv
+bool debugOn = false;
+
 
 //This causes issue if we use MultiThreadedSpinner as the main thread will be blocked. So use AsyncSpinner. AsyncSpinner also has an issue that it will process the dynamic callback only when callback q is the global queue.
 //note : if we have more than 6 cameras, we need to add an entry to the cfg file.
@@ -161,7 +162,6 @@ int main(int argc, char** argv){
     //image_transport::ImageTransport imgTransp(nodeHandler2_pub);
     image_transport::ImageTransport imgTransp(nodeHandler1);
     finalimage_publisher = imgTransp.advertise("finalimage/image_raw", 1);
-    finalimage_publisher_trial = nodeHandler1.advertise<sensor_msgs::Image> ("finalimage_trial/image_raw", 1);
     //IMportant, we have to pass the callable as &callablename, ekse tuple error is coming.
     //std::thread thread1(&callableFunc,"thread1", std::ref(nodeHandler1), std::ref(finalImage), std::ref(msg), std::ref(finalimage_publisher), sharedMutexPtr, CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS);
     for (int i = 0; i < NO_OF_CAMERAS; i++){
@@ -190,9 +190,7 @@ int main(int argc, char** argv){
     //ros::MultiThreadedSpinner spinner(NO_OF_CAMERAS);
     //ros::MultiThreadedSpinner spinner(0);
     //spinner.spin(&my_callback_queue);
-    ros::AsyncSpinner async_spinner(0);
-    async_spinner.start();
-    cout << "reached here" << endl;
+
     //Mutex is non-copyable and non-movable in C++. So we cannot use an assignment operator. Hence have accessed it from a static method using pointers.
     
     std::mutex* sharedMainMutex = cameraSetup::getSharedMutex(); //shared across all objects/cameras
@@ -201,13 +199,19 @@ int main(int argc, char** argv){
     //    ROS_ERROR("Shared Mutex is NULL. Exiting..");
     //        return;
     //}
+    cv::Size finalImagesize = cv::Size(CONST_NO_OF_PIXELS_Y_ROWS,CONST_NO_OF_PIXELS_X_COLS);
+    finalImage.create(finalImagesize, CV_8UC3);
     finalImage.at<int>(0,0) = (255, 255, 255); //point on tl is mad white so that blender wont truncate.
     finalImage.at<int>(499,999) = (255, 255, 255); //point on br is made white
     //cout << "finalImage tl value : " << finalImage(Range(0,2), Range(0,2)) << endl;
     cout << "final size : " << finalImage.size() << endl;
-    while (ros::ok){//ros::ok becomes false when node is shut down.
+
+    ros::AsyncSpinner async_spinner(0);
+    async_spinner.start();
+    cout << "Async spinner has been started." << endl;
+    while(ros::ok){
         //blending code starts here    
-        cout << "." << endl;
+        cout << ".." << endl;
         //cout << "cameraVector.size() " << cameraVector.size() << endl;
         vector<Mat> cameraImages;
         vector<Mat> cameraImageMasks;
@@ -216,7 +220,7 @@ int main(int argc, char** argv){
         for (int i = 0; i < NO_OF_CAMERAS; i++){
             //all images, masks, tl corners and sizes will get saved to member Variables for each camera.
             //use this wherever you read the camera images, corners n sizes.
-            //<check> will this cause a deadlock bcos c++ docs say twice locking by same thread may deadlock. Maybe i am misunderstanding?
+            //<check> will this cause a deadlock bcos c++ docs say twice locking by same thread may deadlock. Maybe i am misunderstanding? - it deadlocks if i nest the function within lock.
             cameraVector[i]-> popCameraQueue();
             {
                 std::lock_guard<std::mutex> lock(*sharedMainMutex);
@@ -322,10 +326,10 @@ int main(int argc, char** argv){
             }
             else {//this should never be invoked
              ROS_ERROR("Error : %s", "Blend type is invalid.");
-             break;
+             
+             //break;
              //return;
             }
-
             blender->prepare(corners, sizes);
             Mat finalCameraImage_s, finalCameraImage, result_mask; //Mats for blended result
             int top_left_final_image = 0;
@@ -338,17 +342,18 @@ int main(int argc, char** argv){
                     (cameraImages[i]).convertTo(cameraImages[i], CV_16SC3);
                     //try printing tl and size here and see.
                     blender->feed(cameraImages[i], cameraImageMasks[i], corners[i]);
-                    cout << "Point "<< i << " is : " << corners[i] << endl;
-                    cout << "x is " << corners[i].x << endl;
+                    //cout << "Point "<< i << " is : " << corners[i] << endl;
+                    //cout << "x is " << corners[i].x << endl;
                     tl_y_coord_Queue.push(corners[i].y);
                 }
                 top_left_final_image = tl_y_coord_Queue.top();
                 blender->blend(finalCameraImage_s, result_mask);
             }
             finalCameraImage_s.convertTo(finalCameraImage, CV_8UC3); //converting back to Unsigned
+            //cout << "reached debug 1" << endl;
             if (!result_mask.empty()){
-                cout << "result mask size ; " << result_mask.size() << endl;
-                cout << "finalCameraImage size ; " << finalCameraImage.size() << endl;
+                //cout << "result mask size ; " << result_mask.size() << endl;
+                //cout << "finalCameraImage size ; " << finalCameraImage.size() << endl;
                 //finalCameraImage.copyTo(finalImage, result_mask); 
 /*                //trying with alpha mattes.
                 // Multiply the foregrounds with the alpha mattes
@@ -361,18 +366,22 @@ int main(int argc, char** argv){
                 // Add the masked foreground and background.
                 add(finalCameraImage, finalImage, finalImage);  
 */              
-                cout << "finalImage size before copy; " << finalImage.size() << endl;
-                cout << "finalImage top left is : " << top_left_final_image << endl;
-                finalCameraImage.copyTo(finalImage(cv::Rect(0,top_left_final_image, finalCameraImage.cols, finalCameraImage.rows)));
-                cout << "finalImage size ; " << finalImage.size() << endl;
+                //cout << "finalImage size before copy; " << finalImage.size() << endl;
+                //cout << "finalImage top left is : " << top_left_final_image << endl;
+                //finalCameraImage.copyTo(finalImage(cv::Rect(0,top_left_final_image, finalCameraImage.cols, finalCameraImage.rows)));
+                //using the blended image as the mask itself.
+                //CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS
+                finalCameraImage.copyTo(finalImage, finalCameraImage);
+                if (debugOn){
+                    cout << "finalImage size ; " << finalImage.size() << endl;   
+                }
             }
-            cout << "finalImage : " << finalImage.size().height << "," << finalImage.size().width << endl;
+            //cout << "finalImage : " << finalImage.size().height << "," << finalImage.size().width << endl;
             if (!finalImage.empty()){
-                //cout << "final Image not empty" << endl;
+                cout << "final Image not empty" << endl;
                 msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", finalImage).toImageMsg(); //bgr8 is blue green red with 8UC3
                 if ((msg != nullptr) && (finalimage_publisher!= NULL)){
                     finalimage_publisher.publish(msg);
-                    finalimage_publisher_trial.publish(msg);
                     //cout << "final image published.." << endl;
                 }   
                 else{
@@ -382,16 +391,14 @@ int main(int argc, char** argv){
             else{
                 cout << "final image is empty.." << endl;
             }
-            
-        //blending code ends here
-        
     }
-    
+        //blending code ends here
+    ros::waitForShutdown(); //AsyncSpinner stops when node shuts down.
+        
     for (int i = 0; i < NO_OF_CAMERAS; i++){
         delete cameraVector[i];
         //cout << "deleting ... " << endl;
     }
-    ros::waitForShutdown(); //AsyncSpinner stops when node shuts down.
     //below final image publisher code has been shifted to within cameraSetup
     //while(ros::ok()){
 //         if (!finalImage.empty()){
