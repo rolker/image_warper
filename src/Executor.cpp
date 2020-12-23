@@ -13,8 +13,8 @@ using namespace std;
 using namespace cv;
 
 // Variables declaration
-const int CONST_NO_OF_PIXELS_Y_ROWS = 500;
-const int CONST_NO_OF_PIXELS_X_COLS = 1000;
+const int CONST_NO_OF_PIXELS_Y_ROWS = 2500;
+const int CONST_NO_OF_PIXELS_X_COLS = 5000;
 //<check - how do we get the number of cameras?>
 const int NO_OF_CAMERAS = 6;
 Mat finalImage(CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS, CV_8UC3, Scalar::all(0));
