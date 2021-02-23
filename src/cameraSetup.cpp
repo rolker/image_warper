@@ -44,7 +44,8 @@ bool cameraSetup::calculateRotationMatrix(ros::Time capture_time){//if there is 
         //transformStamped - will get us the translation and rotation. I am using the rotation for warp. Not using translation currently.
         //transformStamped.transform.translation and transformStamped.transform.rotation
         //transformStampedValue = tfBuffer->lookupTransform("north_up_base_link" , camera_name + "_optical", capture_time+ros::Duration(camera_transform_delay));
-        if (!tfBuffer->canTransform("north_up_base_link" , camera_name + "_optical", ros::Time(capture_time+ros::Duration(camera_transform_delay)), ros::Duration(10))){
+        //a delay of 3 seconds has been kept so that even if the transform arrives a bit late, it will be processed.
+        if (!tfBuffer->canTransform("north_up_base_link" , camera_name + "_optical", ros::Time(capture_time+ros::Duration(camera_transform_delay)), ros::Duration(3))){
             return false;   //if this cannot be done, then return false immediately.
         }
         transformStampedValue = tfBuffer->lookupTransform("north_up_base_link" , camera_name + "_optical", ros::Time(capture_time+ros::Duration(camera_transform_delay)));
@@ -123,12 +124,13 @@ void cameraSetup::process_3D_Map() {
         Point tp1 = sphWarp1.warp(undistorted_cam_data, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
         //warping the mask
         sphWarp1.warp(undistort_dummy_white_Mat, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, mask_warped_img);
+        //trying cyl warper
+        /*Point tp1 = cylWarp1.warp(undistorted_cam_data, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
+        //warping the mask
+        cylWarp1.warp(undistort_dummy_white_Mat, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, mask_warped_img);*/
         //converting to grayscale.
         cvtColor(mask_warped_img, mask_warped_gray_img, COLOR_BGR2GRAY);
-        //using original camera matrix - Point tp1 = sphWarp1.warp(undistorted_cam_data, camera_intrinsics, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
-        //whichever camdata is coming in callback, we need to pass that. Also the rotation matrix corresponding to that camera.
-        //Point tp1 = cylWarp1.warp(undistorted_cam_data, new_optimal_camera_matrix, rotation_matrix, INTER_LINEAR, 0, temp_warped_img);
-        //cout << "point is : " << tp1.x << "," << tp1.y << endl;
+
         
         if (tp1.y < 0){
             ROS_ERROR("Point returned from Spherical Warp has negative y-coordinate: %s", "tp1.y is negative");
@@ -631,7 +633,7 @@ cameraSetup::cameraSetup(string name, ros::NodeHandle& handle, Mat& finalImage, 
     //Creates subscriber for Camera Info
     camerainfo_Subscriber = handle.subscribe("/" + camera_name + "/camera_info",10, &cameraSetup::info_cameraCallBack, this);
     //Creates subscriber for Camera Image
-    inputImage_Subscriber = handle.subscribe("/" + camera_name + "/image_raw",10, &cameraSetup::inputImage_cameraCallBack, this);
+    inputImage_Subscriber = handle.subscribe("/" + camera_name + "/image_raw",20, &cameraSetup::inputImage_cameraCallBack, this);
     
     
     //3 shared variables which form the invariant

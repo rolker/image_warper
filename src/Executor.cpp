@@ -177,7 +177,8 @@ int main(int argc, char** argv){
     //ros::NodeHandle nodeHandler2_pub;
     //image_transport::ImageTransport imgTransp(nodeHandler2_pub);
     image_transport::ImageTransport imgTransp(nodeHandler1);
-    finalimage_publisher = imgTransp.advertise("finalimage/image_raw", 1);
+    //if publisher has queue_size = 1, it drops older msgs if not sent yet. Keeping it to 10, so that publisher can buffer upto 10 msgs.
+    finalimage_publisher = imgTransp.advertise("finalimage/image_raw", 50);
     //IMportant, we have to pass the callable as &callablename, ekse tuple error is coming.
     //std::thread thread1(&callableFunc,"thread1", std::ref(nodeHandler1), std::ref(finalImage), std::ref(msg), std::ref(finalimage_publisher), sharedMutexPtr, CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS);
     for (int i = 0; i < NO_OF_CAMERAS; i++){
@@ -224,7 +225,7 @@ int main(int argc, char** argv){
 
     ros::AsyncSpinner async_spinner(0);
     async_spinner.start();
-    cout << "Async spinner has been started." << endl;
+    cout << "Async spinner has been started - updated." << endl;
     while(ros::ok){
         //blending code starts here    
         cout << ".." << endl;
@@ -396,9 +397,12 @@ int main(int argc, char** argv){
                 //finalCameraImage.copyTo(finalImage(cv::Rect(0,top_left_final_image, finalCameraImage.cols, finalCameraImage.rows)));
                 //using the blended image as the mask itself.
                 //CONST_NO_OF_PIXELS_Y_ROWS, CONST_NO_OF_PIXELS_X_COLS
-                finalCameraImage.copyTo(finalImage, finalCameraImage);
+                //finalCameraImage.copyTo(finalImage, finalCameraImage);
+                finalCameraImage.copyTo(finalImage, result_mask);
                 if (debugOn){
+                    cout << "finalCameraImage size ; " << finalCameraImage.size() << endl;   
                     cout << "finalImage size ; " << finalImage.size() << endl;   
+                    cout << "result_mask size ; " << result_mask.size() << endl;   
                 }
             }
             //cout << "finalImage : " << finalImage.size().height << "," << finalImage.size().width << endl;
@@ -416,33 +420,19 @@ int main(int argc, char** argv){
             else{
                 cout << "final image is empty.." << endl;
             }
+        if (!ros::master::check()){
+            //means master got stopped.
+            cout << "master unavailable" << endl;
+            async_spinner.stop(); //AsyncSpinner stops when node 
+            
+            for (int i = 0; i < NO_OF_CAMERAS; i++){
+                delete cameraVector[i];
+                cout << "deleting ... " << endl;
+            }
+
+            break;
+        }
     }
         //blending code ends here
-    ros::waitForShutdown(); //AsyncSpinner stops when node shuts down.
-        
-    for (int i = 0; i < NO_OF_CAMERAS; i++){
-        delete cameraVector[i];
-        //cout << "deleting ... " << endl;
-    }
-    //below final image publisher code has been shifted to within cameraSetup
-    //while(ros::ok()){
-//         if (!finalImage.empty()){
-//             cout << "entered whiletrue loop" << endl;
-//             msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", finalImage).toImageMsg(); //bgr8 is blue green red with 8UC3
-//             if ((msg != nullptr) && (finalimage_publisher!= NULL)){
-//                 finalimage_publisher.publish(msg);
-//                 cout << "final image published.." << endl;
-//             }   
-//             else{
-//              cout << "Image publishing condition failed for this iteration." << endl;   
-//             }
-//         }
-//         else{
-//             cout << "final image is empty.." << endl;
-//         }
-        //ros::spinOnce();
-        
-        //spinner.spin();
-    //}
-    
+
 }
