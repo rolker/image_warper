@@ -96,21 +96,20 @@ Confirmed inputs in `~/data/logs/bizzy_images/*_ffmpeg_seg` (e.g.
 |---|---|---|
 | Add `prototype/` Python deps | `.gitignore` for `.venv`, `__pycache__`, output artifacts | Yes |
 | Nothing in the built ROS 1 code | (no dependents) | N/A — Phase 1 is additive |
-| `image_warper` still breaks `make build` | Decide whether to `COLCON_IGNORE` until Phase 2 ports it | Open Question |
+| `image_warper` still breaks `make build` | `COLCON_IGNORE` until Phase 2 ports it | No — out of Phase 1 scope per user |
 
-## Open Questions
+## Open Questions (resolved 2026-05-27)
 
-- **Sub-issue vs. direct branch.** The issue body says Phase 1 should be a sub-issue.
-  Work directly on `feature/issue-1`, or file a Phase 1 sub-issue + stacked PR?
-- **Imagery source for validation.** OK to validate geometry on `segmentation/compressed`
-  (easy, but it's the segmentation overlay) and add HEVC RGB after, or must the prototype
-  decode `image_raw/ffmpeg` (true RGB) from the start?
-- **Orientation source.** If this bag's `/tf` lacks a level/world-referenced frame, is
-  joining the parallel `~/data/logs/bizzyboat/<run>` bag by timestamp acceptable for the prototype?
-- **Build breakage.** Should this PR also add a `COLCON_IGNORE` so the unported catkin
-  package stops failing `make build` until Phase 2, or leave that out of Phase 1 scope?
-- **Test rigor.** One synthetic geometry check for a throwaway prototype — enough, or
-  do you want more before Phase 2?
+- **Sub-issue vs. direct branch.** → **Direct on `feature/issue-1`**; PR #2 stays `Part of #1`.
+- **Imagery source for validation.** → **Segmentation-first, then HEVC RGB.** Validate
+  geometry on `segmentation/compressed`, then add PyAV HEVC decode of `image_raw/ffmpeg`.
+- **Build breakage (`COLCON_IGNORE`).** → **Out of Phase 1 scope.** `make build` will keep
+  failing on this catkin package until Phase 2; tracked separately if needed.
+- **Orientation source.** → **Resolved: in-bag `/tf`.** The ffmpeg_seg bag carries
+  `bizzy/base_link_north_up → bizzy/base_link` (full orientation vs. north-up level) and
+  `→ bizzy/base_link_level` (leveled, heading-following). No parallel bag needed. Camera
+  mounting is static: `bizzy/base_link → bizzy/oak_X → bizzy/oak_X_optical`.
+- **Test rigor.** → One synthetic geometry sanity check (throwaway prototype).
 
 ## Estimated Scope
 
