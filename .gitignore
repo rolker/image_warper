@@ -1,0 +1,9 @@
+# Python prototype (Phase 1)
+.venv/
+__pycache__/
+*.pyc
+
+# Prototype output artifacts
+prototype/out/
+*.mp4
+*.png
