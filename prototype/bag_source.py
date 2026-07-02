@@ -228,7 +228,7 @@ class BagSource:
         Returns cam -> (frame_time_ns, BGR image). Searches a +/- window so a
         single-frame render does not scan the whole bag.
         """
-        topics = {_topic(c, "segmentation/compressed"): c for c in CAMERAS}
+        topics = {_topic(c, "segmentation/compressed"): c for c in self.available_cameras()}
         best: dict[str, tuple[int, bytes]] = {}
         lo, hi = max(self.start_ns, t_ns - window_ns), t_ns + window_ns
         with open(self.path, "rb") as fh:
@@ -289,8 +289,9 @@ class BagSource:
         B-frame reordering, so packet stamp == frame stamp; a codec with
         reordering/delay would shift stamps by whole frame periods here.
         """
-        topics = {_topic(c, "image_raw/ffmpeg"): c for c in CAMERAS}
-        decoders = {c: av.CodecContext.create("hevc", "r") for c in CAMERAS}
+        cams = self.available_cameras()
+        topics = {_topic(c, "image_raw/ffmpeg"): c for c in cams}
+        decoders = {c: av.CodecContext.create("hevc", "r") for c in cams}
         last_ts: dict[str, int] = {}
         with open(self.path, "rb") as fh:
             for _schema, channel, _msg, ros_msg in self._reader(fh).iter_decoded_messages(
@@ -323,7 +324,7 @@ class BagSource:
         One pass over the bag — used by video rendering, which keeps the latest
         frame per camera rather than re-scanning a window per output frame.
         """
-        topics = {_topic(c, "segmentation/compressed"): c for c in CAMERAS}
+        topics = {_topic(c, "segmentation/compressed"): c for c in self.available_cameras()}
         with open(self.path, "rb") as fh:
             for _schema, channel, _msg, ros_msg in self._reader(fh).iter_decoded_messages(
                 topics=list(topics), start_time=start_ns, end_time=end_ns,
