@@ -3,7 +3,7 @@
 __pycache__/
 *.pyc
 
-# Prototype output artifacts
+# Prototype output artifacts (scoped: future doc images elsewhere stay trackable)
 prototype/out/
-*.mp4
-*.png
+prototype/*.mp4
+prototype/*.png

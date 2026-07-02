@@ -11,7 +11,7 @@ the repo root is untouched.
 
 ## Setup
 
-Per [ADR-0009](../../../../../docs/decisions/0009-python-package-management-policy.md),
+Per [ADR-0009](https://github.com/rolker/ros2_agent_workspace/blob/main/docs/decisions/0009-python-package-management-policy.md),
 install into a project-local venv (never bare `pip` / `--break-system-packages`):
 
 ```bash

@@ -203,7 +203,7 @@ class BagSource:
         return best
 
     def orientation(self, t_ns: int, reference: str = F_LEVEL) -> np.ndarray:
-        """R mapping `reference` frame -> bizzy/base_link at time `t_ns`.
+        """R mapping bizzy/base_link vectors into `reference` at time `t_ns`.
 
         reference=F_LEVEL  -> roll+pitch of the boat relative to a leveled,
                               heading-following frame (use to remove roll/pitch).
