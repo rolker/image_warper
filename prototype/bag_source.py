@@ -102,9 +102,14 @@ class BagSource:
         with open(self.path, "rb") as fh:
             reader = self._reader(fh)
             summary = reader.get_summary()
-            if summary and summary.statistics:
-                self.start_ns = summary.statistics.message_start_time
-                self.end_ns = summary.statistics.message_end_time
+            if not (summary and summary.statistics):
+                # Without statistics every relative-time computation (--time,
+                # --start, midpoint default) would silently anchor at 0 (1970).
+                raise ValueError(
+                    f"{self.path}: no mcap summary statistics — truncated recording? "
+                    "Try 'mcap recover' on the file first.")
+            self.start_ns = summary.statistics.message_start_time
+            self.end_ns = summary.statistics.message_end_time
             for _schema, channel, _msg, ros_msg in reader.iter_decoded_messages(
                 topics=["/tf_static", "/tf", *info_topics],
             ):
