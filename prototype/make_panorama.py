@@ -67,7 +67,8 @@ def render_still(src: bs.BagSource, t_ns: int, mode: str, out: str, source: str,
     if len(images) < 2:
         sys.exit(f"only {len(images)} camera(s) near t={t_ns}; need >=2 to stitch")
     pan = pano.stitch(src, images, mode=mode, infos=infos, stamp_offset_ns=stamp_offset_ns)
-    cv2.imwrite(out, pan)
+    if not cv2.imwrite(out, pan):
+        sys.exit(f"could not write {out} (missing directory or bad extension?)")
     print(f"wrote {out}  ({pan.shape[1]}x{pan.shape[0]}, {len(images)} cameras, "
           f"mode={mode}, source={source})")
 
