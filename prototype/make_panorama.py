@@ -96,10 +96,12 @@ def render_video(src: bs.BagSource, start_ns: int, end_ns: int, mode: str, fps: 
     scale = canvas = writer = None
     anchor = None   # first camera seen sets the output cadence (all cameras ~5 Hz)
     warned_stale: set[str] = set()
+    last_seen_ns = last_emit_ns = None
     n = 0
     try:
         for t_ns, cam, img in stream(start_ns, end_ns):
             latest[cam] = (t_ns, img)
+            last_seen_ns = t_ns
             if anchor is None:
                 anchor = cam
             if writer is None:                   # lazily size output from the first frame
@@ -126,12 +128,20 @@ def render_video(src: bs.BagSource, start_ns: int, end_ns: int, mode: str, fps: 
                                   scale=scale, canvas=canvas, infos=infos,
                                   stamp_offset_ns=stamp_offset_ns)
                 writer.write(pan)
+                last_emit_ns = t_ns
                 n += 1
     finally:
         if writer is not None:
             writer.release()
     if n == 0:
         sys.exit("no frames written (no images in range, or <2 cameras)")
+    # Emission is keyed to the anchor camera, so an anchor stall ends the video
+    # early while other cameras keep streaming — the in-loop stale warnings
+    # can't fire for that case (they only run on anchor emits).
+    if last_seen_ns - last_emit_ns > STALE_NS:
+        print(f"warning: anchor camera {anchor} went quiet "
+              f"{(last_seen_ns - last_emit_ns) / 1e9:.1f}s before the range end; "
+              "video truncated early", file=sys.stderr)
     print(f"wrote {out}  ({canvas[2]}x{canvas[3]}, {n} frames @ {fps} fps, "
           f"mode={mode}, source={source})")
 
@@ -163,20 +173,29 @@ def main() -> None:
         ap.error("--start/--end/--fps require --video")
     if args.video and args.end is not None and args.end <= (args.start or 0.0):
         ap.error(f"--end ({args.end}) must be greater than --start ({args.start or 0.0})")
+    if args.fps is not None and args.fps <= 0:
+        ap.error(f"--fps ({args.fps}) must be greater than 0")
 
-    src = bs.BagSource(_resolve_bag(args.bag))
+    try:
+        src = bs.BagSource(_resolve_bag(args.bag))
+    except ValueError as e:                       # e.g. statistics-less truncated bag
+        sys.exit(f"error: {e}")
     offset_ns = int(args.stamp_offset * 1e9)
 
-    if args.video:
-        start_ns = src.start_ns + int((args.start or 0.0) * 1e9)
-        end_ns = src.end_ns if args.end is None else src.start_ns + int(args.end * 1e9)
-        render_video(src, start_ns, end_ns, args.mode, args.fps or 5.0,
-                     args.out or "pano.mp4", args.source, stamp_offset_ns=offset_ns)
-    else:
-        t_ns = ((src.start_ns + src.end_ns) // 2 if args.time is None
-                else src.start_ns + int(args.time * 1e9))
-        render_still(src, t_ns, args.mode, args.out or "frame.png", args.source,
-                     stamp_offset_ns=offset_ns)
+    try:
+        if args.video:
+            start_ns = src.start_ns + int((args.start or 0.0) * 1e9)
+            end_ns = src.end_ns if args.end is None else src.start_ns + int(args.end * 1e9)
+            render_video(src, start_ns, end_ns, args.mode,
+                         5.0 if args.fps is None else args.fps,
+                         args.out or "pano.mp4", args.source, stamp_offset_ns=offset_ns)
+        else:
+            t_ns = ((src.start_ns + src.end_ns) // 2 if args.time is None
+                    else src.start_ns + int(args.time * 1e9))
+            render_still(src, t_ns, args.mode, args.out or "frame.png", args.source,
+                         stamp_offset_ns=offset_ns)
+    except KeyError as e:                         # e.g. missing TF edge/chain in the bag
+        sys.exit(f"error: bag is missing required data: {e}")
 
 
 if __name__ == "__main__":
