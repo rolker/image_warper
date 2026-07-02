@@ -5,4 +5,3 @@ opencv-python>=4.9          # cv2.PyRotationWarper (cylindrical), imdecode, rema
 av>=12.0                    # PyAV: decode HEVC FFMPEGPacket (image_raw/ffmpeg) to RGB
 mcap>=1.2                   # read .mcap bags standalone (no ROS install)
 mcap-ros2-support>=0.5      # deserialize ROS 2 msgs using schemas embedded in the bag
-imageio[ffmpeg]>=2.34       # mp4 writer fallback
