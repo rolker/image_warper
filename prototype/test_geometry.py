@@ -89,6 +89,9 @@ def _main() -> int:
         except AssertionError as e:
             failed += 1
             print(f"FAIL {t.__name__}: {e}")
+        except Exception as e:  # regression that errors instead of asserting
+            failed += 1
+            print(f"FAIL {t.__name__}: {type(e).__name__}: {e}")
     print(f"\n{len(tests) - failed}/{len(tests)} passed")
     return 1 if failed else 0
 
