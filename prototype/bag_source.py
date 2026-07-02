@@ -144,6 +144,14 @@ class BagSource:
     def camera_info(self, cam: str) -> CameraInfo:
         return self._camera_info[cam]
 
+    def available_cameras(self) -> tuple[str, ...]:
+        """Cameras that actually published segmentation CameraInfo in this bag.
+
+        A camera can be down for a whole run; consumers should iterate this
+        instead of CAMERAS so a 3-camera bag degrades instead of KeyError-ing.
+        """
+        return tuple(c for c in CAMERAS if c in self._camera_info)
+
     # -- public: TF ---------------------------------------------------------
     def static_rotation(self, target: str, source: str) -> np.ndarray:
         """R that maps a vector in `source` frame into `target`, via static TF only.

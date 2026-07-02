@@ -49,7 +49,7 @@ def _infos(src: bs.BagSource, source: str, img: np.ndarray) -> dict | None:
     if source != "rgb":
         return None
     h, w = img.shape[:2]
-    return {c: src.fullres_camera_info(c, w, h) for c in bs.CAMERAS}
+    return {c: src.fullres_camera_info(c, w, h) for c in src.available_cameras()}
 
 
 def render_still(src: bs.BagSource, t_ns: int, mode: str, out: str, source: str,
@@ -89,7 +89,8 @@ def render_video(src: bs.BagSource, start_ns: int, end_ns: int, mode: str, fps: 
             if writer is None:                   # lazily size output from the first frame
                 infos = _infos(src, source, img)
                 scale = float(np.median([
-                    (infos[c].K[0, 0] if infos else src.camera_info(c).K[0, 0]) for c in bs.CAMERAS
+                    (infos[c].K[0, 0] if infos else src.camera_info(c).K[0, 0])
+                    for c in src.available_cameras()
                 ]))
                 canvas = pano.full_canvas(scale)
                 writer = cv2.VideoWriter(
