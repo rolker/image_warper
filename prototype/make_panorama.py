@@ -52,7 +52,8 @@ def _infos(src: bs.BagSource, source: str, img: np.ndarray) -> dict | None:
     return {c: src.fullres_camera_info(c, w, h) for c in bs.CAMERAS}
 
 
-def render_still(src: bs.BagSource, t_ns: int, mode: str, out: str, source: str) -> None:
+def render_still(src: bs.BagSource, t_ns: int, mode: str, out: str, source: str,
+                 stamp_offset_ns: int = 0) -> None:
     if source == "rgb":
         # decode forward from bag start, keeping the latest frame per camera up to t
         latest: dict[str, tuple[int, np.ndarray]] = {}
@@ -65,14 +66,14 @@ def render_still(src: bs.BagSource, t_ns: int, mode: str, out: str, source: str)
         infos = None
     if len(images) < 2:
         sys.exit(f"only {len(images)} camera(s) near t={t_ns}; need >=2 to stitch")
-    pan = pano.stitch(src, images, t_ns, mode=mode, infos=infos)
+    pan = pano.stitch(src, images, mode=mode, infos=infos, stamp_offset_ns=stamp_offset_ns)
     cv2.imwrite(out, pan)
     print(f"wrote {out}  ({pan.shape[1]}x{pan.shape[0]}, {len(images)} cameras, "
           f"mode={mode}, source={source})")
 
 
 def render_video(src: bs.BagSource, start_ns: int, end_ns: int, mode: str, fps: float,
-                 out: str, source: str) -> None:
+                 out: str, source: str, stamp_offset_ns: int = 0) -> None:
     stream = src.iter_rgb if source == "rgb" else src.iter_images
     latest: dict[str, tuple[int, np.ndarray]] = {}
     infos = None
@@ -96,8 +97,9 @@ def render_video(src: bs.BagSource, start_ns: int, end_ns: int, mode: str, fps: 
                     sys.exit(f"could not open VideoWriter for {out}")
             # Emit one output frame per anchor-camera frame, once >=2 cameras have data.
             if cam == anchor and len(latest) >= 2:
-                pan = pano.stitch(src, dict(latest), t_ns, mode=mode,
-                                  scale=scale, canvas=canvas, infos=infos)
+                pan = pano.stitch(src, dict(latest), mode=mode,
+                                  scale=scale, canvas=canvas, infos=infos,
+                                  stamp_offset_ns=stamp_offset_ns)
                 writer.write(pan)
                 n += 1
     finally:
@@ -121,17 +123,24 @@ def main() -> None:
     ap.add_argument("--start", type=float, default=0.0, help="video: start seconds from bag start")
     ap.add_argument("--end", type=float, help="video: end seconds from bag start (default: bag end)")
     ap.add_argument("--fps", type=float, default=5.0, help="video: output frame rate")
+    ap.add_argument("--stamp-offset", type=float, default=0.0, metavar="SECONDS",
+                    help="subtract from image stamps before the TF orientation lookup; "
+                         "use ~0.6 with --source rgb (image_raw/ffmpeg stamps trail "
+                         "capture by ~0.6 s — unh_marine_perception#41)")
     args = ap.parse_args()
 
     src = bs.BagSource(_resolve_bag(args.bag))
+    offset_ns = int(args.stamp_offset * 1e9)
 
     if args.video:
         start_ns = src.start_ns + int(args.start * 1e9)
         end_ns = src.end_ns if args.end is None else src.start_ns + int(args.end * 1e9)
-        render_video(src, start_ns, end_ns, args.mode, args.fps, args.out or "pano.mp4", args.source)
+        render_video(src, start_ns, end_ns, args.mode, args.fps, args.out or "pano.mp4",
+                     args.source, stamp_offset_ns=offset_ns)
     else:
         t_ns = (src.start_ns + src.end_ns) // 2 if args.time is None else src.start_ns + int(args.time * 1e9)
-        render_still(src, t_ns, args.mode, args.out or "frame.png", args.source)
+        render_still(src, t_ns, args.mode, args.out or "frame.png", args.source,
+                     stamp_offset_ns=offset_ns)
 
 
 if __name__ == "__main__":

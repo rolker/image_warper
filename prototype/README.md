@@ -50,6 +50,16 @@ BAG=~/data/logs/gabby/logs/bizzy_images/bag_2026-04-29T19.35.07_ffmpeg_seg   # d
 **`--source`**: `seg` = `segmentation/compressed` (128×96, fast geometry iteration);
 `rgb` = full-res HEVC `image_raw/ffmpeg` (1920×1080, operator-quality).
 
+**`--stamp-offset SECONDS`** (default 0): subtracted from every image header stamp
+before the TF orientation lookup. The `image_raw/ffmpeg` stamps trail actual
+capture by **~0.6 s** (≈3 frame periods @ 5 fps — encoder pipeline latency baked
+into `EncodedFrame::getTimestamp()`; measured by cross-correlating content motion
+against the correctly-stamped segmentation stream and `/tf`, see
+[unh_marine_perception#41](https://github.com/rolker/unh_marine_perception/issues/41)).
+So for `--source rgb` pass `--stamp-offset 0.6`; the `seg` stream is
+capture-accurate (+4 ms) and needs none. Each tile is warped with the
+orientation at its **own** (offset-corrected) stamp, not the anchor frame's.
+
 ## Tests
 
 ```bash

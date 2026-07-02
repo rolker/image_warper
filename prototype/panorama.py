@@ -89,19 +89,25 @@ def undistort(img: np.ndarray, ci: bs.CameraInfo) -> tuple[np.ndarray, np.ndarra
 def stitch(
     src: bs.BagSource,
     images: dict[str, tuple[int, np.ndarray]],
-    t_ns: int,
     mode: str = "roll",
     scale: float | None = None,
     canvas: tuple[int, int, int, int] | None = None,
     infos: dict[str, bs.CameraInfo] | None = None,
+    stamp_offset_ns: int = 0,
 ) -> np.ndarray:
     """Stitch per-camera images into one feather-blended cylindrical panorama (BGR).
 
+    Each tile is warped with the boat orientation at its own image stamp (a
+    shared lookup time would smear tiles whose frames are older than the
+    anchor's during motion).
     `canvas` = (x, y, w, h) result ROI in cylinder pixel coords. Pass a fixed
     canvas for video (constant output size); leave None for stills (the ROI is
     the tight bounding box of the warped tiles).
     `infos` overrides the per-camera intrinsics (e.g. full-res for the HEVC RGB
     path); defaults to the bag's segmentation CameraInfo.
+    `stamp_offset_ns` is subtracted from every image stamp before the TF lookup
+    — compensates streams whose stamps trail capture time (the H.265
+    image_raw/ffmpeg path is ~0.6 s late; see unh_marine_perception#41).
     """
     def info(cam: str) -> bs.CameraInfo:
         return infos[cam] if infos else src.camera_info(cam)
@@ -112,11 +118,12 @@ def stitch(
     seam = _rot_cyl_axis(SEAM_YAW_DEG)
 
     corners, warped_imgs, warped_masks = [], [], []
-    for cam, (_ts, img) in images.items():
+    for cam, (ts, img) in images.items():
         ci = info(cam)
         rect, vmask = undistort(img, ci)
         K = ci.K.astype(np.float32)
-        R = (seam @ AXIS_FIX @ reference_rotation(src, cam, t_ns, mode)).astype(np.float32)
+        R = (seam @ AXIS_FIX
+             @ reference_rotation(src, cam, ts - stamp_offset_ns, mode)).astype(np.float32)
         corner, wimg = warper.warp(rect, K, R, cv2.INTER_LINEAR, cv2.BORDER_CONSTANT)
         _corner, wmask = warper.warp(vmask, K, R, cv2.INTER_NEAREST, cv2.BORDER_CONSTANT)
         corners.append(corner)
