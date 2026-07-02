@@ -98,7 +98,25 @@ loudly with the intended messages.
 **Round**: 2 | **Ship**: recommended — all 18 round-1 findings verified fixed under cold re-derivation; new items are degradation-path polish only
 
 ### Findings
-- [ ] (suggestion) anchor-camera stall silently truncates video; stale warning gated on anchor emits — `prototype/make_panorama.py:117`
-- [ ] (suggestion) image iterators use CAMERAS not available_cameras(); imagery-without-camera_info still KeyErrors — `prototype/bag_source.py:231`
-- [ ] (suggestion) validate --fps > 0 (explicit 0 silently becomes 5.0; negative reaches VideoWriter) — `prototype/make_panorama.py:173`
-- [ ] (suggestion) wrap BagSource construction so ValueError/KeyError exit cleanly like other CLI errors — `prototype/make_panorama.py:167`
+- [x] (suggestion) anchor-camera stall silently truncates video; stale warning gated on anchor emits — `prototype/make_panorama.py:117`
+- [x] (suggestion) image iterators use CAMERAS not available_cameras(); imagery-without-camera_info still KeyErrors — `prototype/bag_source.py:231`
+- [x] (suggestion) validate --fps > 0 (explicit 0 silently becomes 5.0; negative reaches VideoWriter) — `prototype/make_panorama.py:173`
+- [x] (suggestion) wrap BagSource construction so ValueError/KeyError exit cleanly like other CLI errors — `prototype/make_panorama.py:167`
+
+## Implementation
+**Status**: complete
+**When**: 2026-07-02 18:55 -04:00
+**By**: Claude Code Agent (Claude Fable 5)
+
+**Branch**: feature/issue-1 at `ef8f45f`
+**Addressed**: Local Review (Pre-Push) round 2, 2026-07-02 18:35 at `514d40c` (0 must-fix, 4 suggestions)
+**Commits**: 1ed3223, ef8f45f
+
+### Actions
+- [x] image iterators serve only cameras with camera_info — `prototype/bag_source.py`
+- [x] anchor-stall truncation warning after the video loop — `prototype/make_panorama.py`
+- [x] --fps > 0 validated — `prototype/make_panorama.py`
+- [x] BagSource ValueError / TF KeyError exit cleanly — `prototype/make_panorama.py`
+
+Verified: flake8 clean, test_geometry 3/3, seg still + 6s video render, --fps 0
+and bad-bag error paths exercised.
