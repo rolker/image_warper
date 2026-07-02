@@ -40,6 +40,12 @@ def _resolve_bag(path: str) -> str:
         hits = sorted(glob.glob(os.path.join(path, "*.mcap")))
         if not hits:
             sys.exit(f"no .mcap under {path}")
+        if len(hits) > 1:
+            # A split rosbag2 recording; reading only the first file would
+            # silently drop the rest of the run.
+            listing = "\n  ".join(hits)
+            sys.exit(f"{path} holds {len(hits)} .mcap files (split recording — "
+                     f"not supported yet); pass one explicitly:\n  {listing}")
         return hits[0]
     return path
 
@@ -139,23 +145,31 @@ def main() -> None:
     ap.add_argument("-o", "--out", help="output path (default frame.png / pano.mp4)")
     ap.add_argument("--video", action="store_true", help="render an mp4 over a time range")
     ap.add_argument("--time", type=float, help="still: seconds from bag start (default: midpoint)")
-    ap.add_argument("--start", type=float, default=0.0, help="video: start seconds from bag start")
+    ap.add_argument("--start", type=float, help="video: start seconds from bag start (default: 0)")
     ap.add_argument("--end", type=float, help="video: end seconds from bag start (default: bag end)")
-    ap.add_argument("--fps", type=float, default=5.0, help="video: output frame rate")
+    ap.add_argument("--fps", type=float, help="video: output frame rate (default: 5)")
     ap.add_argument("--stamp-offset", type=float, default=0.0, metavar="SECONDS",
                     help="subtract from image stamps before the TF orientation lookup; "
                          "use ~0.6 with --source rgb (image_raw/ffmpeg stamps trail "
                          "capture by ~0.6 s — unh_marine_perception#41)")
     args = ap.parse_args()
 
+    # Mode/argument interactions — reject silently-ignored combinations.
+    if args.video and args.time is not None:
+        ap.error("--time selects a still; use --start/--end with --video")
+    if not args.video and any(v is not None for v in (args.start, args.end, args.fps)):
+        ap.error("--start/--end/--fps require --video")
+    if args.video and args.end is not None and args.end <= (args.start or 0.0):
+        ap.error(f"--end ({args.end}) must be greater than --start ({args.start or 0.0})")
+
     src = bs.BagSource(_resolve_bag(args.bag))
     offset_ns = int(args.stamp_offset * 1e9)
 
     if args.video:
-        start_ns = src.start_ns + int(args.start * 1e9)
+        start_ns = src.start_ns + int((args.start or 0.0) * 1e9)
         end_ns = src.end_ns if args.end is None else src.start_ns + int(args.end * 1e9)
-        render_video(src, start_ns, end_ns, args.mode, args.fps, args.out or "pano.mp4",
-                     args.source, stamp_offset_ns=offset_ns)
+        render_video(src, start_ns, end_ns, args.mode, args.fps or 5.0,
+                     args.out or "pano.mp4", args.source, stamp_offset_ns=offset_ns)
     else:
         t_ns = (src.start_ns + src.end_ns) // 2 if args.time is None else src.start_ns + int(args.time * 1e9)
         render_still(src, t_ns, args.mode, args.out or "frame.png", args.source,
