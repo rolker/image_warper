@@ -16,6 +16,7 @@ limitation, noted in README.md).
 from __future__ import annotations
 
 import bisect
+import sys
 from dataclasses import dataclass
 
 import av
@@ -31,6 +32,10 @@ NS = "bizzy/"
 F_NORTH_UP = NS + "base_link_north_up"   # gravity-aligned, north-locked reference
 F_LEVEL = NS + "base_link_level"         # gravity-aligned, heading-following
 F_BASE = NS + "base_link"                # full boat orientation
+
+# Dynamic-TF lookups farther than this from the nearest sample are suspect
+# (clamped past the bag edge, or spanning a mid-bag TF dropout at ~10 Hz).
+MAX_TF_GAP_NS = 1_000_000_000
 
 
 def _topic(cam: str, suffix: str) -> str:
@@ -88,6 +93,8 @@ class BagSource:
         self._static_rot: dict[str, tuple[str, np.ndarray]] = {}  # child -> (parent, R)
         # dynamic orientation edges we care about: parent -> sorted [(t_ns, R)]
         self._dyn: dict[tuple[str, str], list[tuple[int, np.ndarray]]] = {}
+        self._dyn_times: dict[tuple[str, str], list[int]] = {}  # lookup index for _dyn
+        self._gap_warned: set[tuple[str, str]] = set()
         self.start_ns: int = 0
         self.end_ns: int = 0
         self._scan_static()
@@ -137,8 +144,9 @@ class BagSource:
                             self._dyn.setdefault(edge, []).append(
                                 (_stamp_ns(tr.header), quat_to_matrix(q.x, q.y, q.z, q.w))
                             )
-        for seq in self._dyn.values():
+        for edge, seq in self._dyn.items():
             seq.sort(key=lambda kv: kv[0])
+            self._dyn_times[edge] = [kv[0] for kv in seq]
 
     # -- public: intrinsics -------------------------------------------------
     def camera_info(self, cam: str) -> CameraInfo:
@@ -177,14 +185,22 @@ class BagSource:
         seq = self._dyn.get(edge)
         if not seq:
             raise KeyError(f"no dynamic TF samples for edge {edge}")
-        times = [kv[0] for kv in seq]
+        times = self._dyn_times[edge]
         i = bisect.bisect_left(times, t_ns)
         if i == 0:
-            return seq[0][1]
-        if i >= len(seq):
-            return seq[-1][1]
-        before, after = seq[i - 1], seq[i]
-        return before[1] if (t_ns - before[0]) <= (after[0] - t_ns) else after[1]
+            t_best, best = seq[0]
+        elif i >= len(seq):
+            t_best, best = seq[-1]
+        else:
+            before, after = seq[i - 1], seq[i]
+            t_best, best = before if (t_ns - before[0]) <= (after[0] - t_ns) else after
+        gap = abs(t_best - t_ns)
+        if gap > MAX_TF_GAP_NS and edge not in self._gap_warned:
+            self._gap_warned.add(edge)
+            print(f"warning: TF lookup {gap / 1e9:.2f}s from the nearest {edge[1]} sample "
+                  "(clamped past bag edge or TF dropout); orientation may be stale. "
+                  "Further gaps on this edge are not reported.", file=sys.stderr)
+        return best
 
     def orientation(self, t_ns: int, reference: str = F_LEVEL) -> np.ndarray:
         """R mapping `reference` frame -> bizzy/base_link at time `t_ns`.
