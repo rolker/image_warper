@@ -282,21 +282,39 @@ class BagSource:
 
         HEVC needs a keyframe before the first frame decodes, so a range that
         does not begin on a keyframe yields nothing until the next one.
+
+        Each decoded frame is stamped with the header time of the packet that
+        completed it. These camera encoders emit one frame per packet with no
+        B-frame reordering, so packet stamp == frame stamp; a codec with
+        reordering/delay would shift stamps by whole frame periods here.
         """
         topics = {_topic(c, "image_raw/ffmpeg"): c for c in CAMERAS}
         decoders = {c: av.CodecContext.create("hevc", "r") for c in CAMERAS}
+        last_ts: dict[str, int] = {}
         with open(self.path, "rb") as fh:
             for _schema, channel, _msg, ros_msg in self._reader(fh).iter_decoded_messages(
                 topics=list(topics), start_time=start_ns, end_time=end_ns,
             ):
                 cam = topics[channel.topic]
                 t_ns = _stamp_ns(ros_msg.header)
+                last_ts[cam] = t_ns
                 try:
                     frames = decoders[cam].decode(av.Packet(bytes(ros_msg.data)))
                 except av.FFmpegError:
                     continue  # skip undecodable packet (e.g. before first keyframe)
                 for frame in frames:
                     yield t_ns, cam, frame.to_ndarray(format="bgr24")
+            # Flush frames still buffered in libav at end-of-range (stamped with
+            # that camera's last packet time — exact for these no-reorder streams).
+            for cam, dec in decoders.items():
+                if cam not in last_ts:
+                    continue
+                try:
+                    frames = dec.decode(None)
+                except av.FFmpegError:
+                    continue
+                for frame in frames:
+                    yield last_ts[cam], cam, frame.to_ndarray(format="bgr24")
 
     def iter_images(self, start_ns: int | None = None, end_ns: int | None = None):
         """Stream (t_ns, cam, BGR) for segmentation/compressed in time order.
