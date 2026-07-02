@@ -264,8 +264,8 @@ class BagSource:
                 t_ns = _stamp_ns(ros_msg.header)
                 try:
                     frames = decoders[cam].decode(av.Packet(bytes(ros_msg.data)))
-                except av.AVError:
-                    continue
+                except av.FFmpegError:
+                    continue  # skip undecodable packet (e.g. before first keyframe)
                 for frame in frames:
                     yield t_ns, cam, frame.to_ndarray(format="bgr24")
 

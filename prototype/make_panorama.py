@@ -41,7 +41,11 @@ def _resolve_bag(path: str) -> str:
 
 
 def _infos(src: bs.BagSource, source: str, img: np.ndarray) -> dict | None:
-    """Per-camera intrinsics for the chosen imagery source (None = segmentation)."""
+    """Per-camera intrinsics for the chosen imagery source (None = segmentation).
+
+    Assumes all OAK cameras share the full-res size (1920x1080 on BizzyBoat), so
+    one decoded frame's shape sizes the intrinsics for every camera.
+    """
     if source != "rgb":
         return None
     h, w = img.shape[:2]
@@ -63,36 +67,46 @@ def render_still(src: bs.BagSource, t_ns: int, mode: str, out: str, source: str)
         sys.exit(f"only {len(images)} camera(s) near t={t_ns}; need >=2 to stitch")
     pan = pano.stitch(src, images, t_ns, mode=mode, infos=infos)
     cv2.imwrite(out, pan)
-    print(f"wrote {out}  ({pan.shape[1]}x{pan.shape[0]}, {len(images)} cameras, mode={mode}, source={source})")
+    print(f"wrote {out}  ({pan.shape[1]}x{pan.shape[0]}, {len(images)} cameras, "
+          f"mode={mode}, source={source})")
 
 
-def render_video(src: bs.BagSource, start_ns: int, end_ns: int, mode: str, fps: float, out: str, source: str) -> None:
+def render_video(src: bs.BagSource, start_ns: int, end_ns: int, mode: str, fps: float,
+                 out: str, source: str) -> None:
     stream = src.iter_rgb if source == "rgb" else src.iter_images
     latest: dict[str, tuple[int, np.ndarray]] = {}
     infos = None
     scale = canvas = writer = None
+    anchor = None   # first camera seen sets the output cadence (all cameras ~5 Hz)
     n = 0
-    for t_ns, cam, img in stream(start_ns, end_ns):
-        latest[cam] = (t_ns, img)
-        if writer is None:                       # lazily size output from first frame
-            infos = _infos(src, source, img)
-            scale = float(np.median([
-                (infos[c].K[0, 0] if infos else src.camera_info(c).K[0, 0]) for c in bs.CAMERAS
-            ]))
-            canvas = pano.full_canvas(scale)
-            writer = cv2.VideoWriter(out, cv2.VideoWriter_fourcc(*"mp4v"), fps, (canvas[2], canvas[3]))
-            if not writer.isOpened():
-                sys.exit(f"could not open VideoWriter for {out}")
-        # Trigger an output frame on each oak_forward frame (the anchor), once >=2 cameras have data.
-        if cam == "oak_forward" and len(latest) >= 2:
-            pan = pano.stitch(src, dict(latest), t_ns, mode=mode, scale=scale, canvas=canvas, infos=infos)
-            writer.write(pan)
-            n += 1
-    if writer is not None:
-        writer.release()
+    try:
+        for t_ns, cam, img in stream(start_ns, end_ns):
+            latest[cam] = (t_ns, img)
+            if anchor is None:
+                anchor = cam
+            if writer is None:                   # lazily size output from the first frame
+                infos = _infos(src, source, img)
+                scale = float(np.median([
+                    (infos[c].K[0, 0] if infos else src.camera_info(c).K[0, 0]) for c in bs.CAMERAS
+                ]))
+                canvas = pano.full_canvas(scale)
+                writer = cv2.VideoWriter(
+                    out, cv2.VideoWriter_fourcc(*"mp4v"), fps, (canvas[2], canvas[3]))
+                if not writer.isOpened():
+                    sys.exit(f"could not open VideoWriter for {out}")
+            # Emit one output frame per anchor-camera frame, once >=2 cameras have data.
+            if cam == anchor and len(latest) >= 2:
+                pan = pano.stitch(src, dict(latest), t_ns, mode=mode,
+                                  scale=scale, canvas=canvas, infos=infos)
+                writer.write(pan)
+                n += 1
+    finally:
+        if writer is not None:
+            writer.release()
     if n == 0:
-        sys.exit("no frames written (no oak_forward images in range, or <2 cameras)")
-    print(f"wrote {out}  ({canvas[2]}x{canvas[3]}, {n} frames @ {fps} fps, mode={mode}, source={source})")
+        sys.exit("no frames written (no images in range, or <2 cameras)")
+    print(f"wrote {out}  ({canvas[2]}x{canvas[3]}, {n} frames @ {fps} fps, "
+          f"mode={mode}, source={source})")
 
 
 def main() -> None:

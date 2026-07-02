@@ -42,11 +42,15 @@ def _rot_cyl_axis(deg: float) -> np.ndarray:
     c, s = np.cos(a), np.sin(a)
     return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
 
-# Stabilization reference frames, by CLI keyword.
+
+# Stabilization reference frames, by CLI keyword:
+#   none       raw boat frame: horizon tilts with the boat
+#   roll_pitch leveled, heading-following (removes roll AND pitch)
+#   north_up   fully world-referenced, north-up
 REFERENCES = {
-    "none": bs.F_BASE,        # raw boat frame: horizon tilts with the boat
-    "roll_pitch": bs.F_LEVEL, # remove roll AND pitch (leveled, heading-following)
-    "north_up": bs.F_NORTH_UP,# fully world-referenced, north-up
+    "none": bs.F_BASE,
+    "roll_pitch": bs.F_LEVEL,
+    "north_up": bs.F_NORTH_UP,
 }
 
 
@@ -136,6 +140,10 @@ def _paste_to_canvas(result, result_mask, corner, canvas) -> np.ndarray:
     cx, cy, cw, ch = canvas
     out = np.zeros((ch, cw, 3), np.uint8)
     rh, rw = result.shape[:2]
+    if rw > cw:
+        # Strip wider than one full turn (rounding/seam-rotation slack): clip the
+        # tail so the modulo wrap can't double-write a column over the seam.
+        result, result_mask, rw = result[:, :cw], result_mask[:, :cw], cw
     ys = np.arange(rh) + (corner[1] - cy)
     xs = (np.arange(rw) + (corner[0] - cx)) % cw  # wrap around the cylinder
     yv = (ys >= 0) & (ys < ch)
