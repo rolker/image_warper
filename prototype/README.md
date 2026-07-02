@@ -25,7 +25,7 @@ Requires `ffmpeg`/libav on the system (PyAV uses it to decode HEVC).
 
 ```bash
 cd prototype
-BAG=~/data/logs/bizzy_images/bag_2026-04-29T19.35.07_ffmpeg_seg   # dir or .mcap
+BAG=~/data/logs/gabby/logs/bizzy_images/bag_2026-04-29T19.35.07_ffmpeg_seg   # dir or .mcap
 
 # single frame -> PNG (segmentation imagery, fast)
 ../.venv/bin/python make_panorama.py --bag "$BAG" --time 60 --mode roll_pitch -o out/frame.png
