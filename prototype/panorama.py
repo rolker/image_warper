@@ -30,10 +30,13 @@ AXIS_FIX = np.array([
     [0.0, 1.0, 0.0],
 ])
 
-# Rotate the whole panorama about the cylinder axis so the +/-180 deg wrap seam
-# lands in a gap between cameras (cameras sit at 0/90/180/270; 45 deg puts the
-# seam mid-gap) instead of splitting one camera across both edges.
-SEAM_YAW_DEG = 45.0
+# Rotate the whole panorama about the cylinder axis to choose where the
+# +/-180 deg wrap seam lands. A camera at boat yaw `y` sits at canvas angle
+# (SEAM_YAW_DEG - 90 - y) mod 360, so 270 puts the seam through the middle of
+# the aft camera (yaw 180): the strip reads left-to-right as
+# [aft | port, forward, starboard | aft] with forward dead-centre, and the
+# canvas paste wraps the split aft tile across both edges.
+SEAM_YAW_DEG = 270.0
 
 
 def _rot_cyl_axis(deg: float) -> np.ndarray:
