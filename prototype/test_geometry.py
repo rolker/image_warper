@@ -49,7 +49,8 @@ def test_level_base_rotation_removes_yaw() -> None:
         R_level_base = bs.level_base_rotation(R_nu_level, R_nu_base)
         # decompose result (ZYX): yaw ~ 0, pitch/roll preserved
         out_yaw = np.arctan2(R_level_base[1, 0], R_level_base[0, 0])
-        out_pitch = np.arctan2(-R_level_base[2, 0], np.hypot(R_level_base[2, 1], R_level_base[2, 2]))
+        out_pitch = np.arctan2(-R_level_base[2, 0],
+                               np.hypot(R_level_base[2, 1], R_level_base[2, 2]))
         out_roll = np.arctan2(R_level_base[2, 1], R_level_base[2, 2])
         assert abs(out_yaw) < 1e-9, f"yaw not removed: {out_yaw}"
         np.testing.assert_allclose([out_roll, out_pitch], [roll, pitch], atol=1e-9)

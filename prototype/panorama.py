@@ -167,7 +167,8 @@ def _paste_to_canvas(result, result_mask, corner, canvas) -> np.ndarray:
     return out
 
 
-def full_canvas(scale: float, height: int | None = None, v_center: int = 0) -> tuple[int, int, int, int]:
+def full_canvas(scale: float, height: int | None = None,
+                v_center: int = 0) -> tuple[int, int, int, int]:
     """Fixed full-360 cylinder ROI (x, y, w, h) for constant-size video frames.
 
     Height defaults to ~1.8x the cylinder radius (covers the cameras' vertical

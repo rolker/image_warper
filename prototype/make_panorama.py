@@ -137,7 +137,8 @@ def render_video(src: bs.BagSource, start_ns: int, end_ns: int, mode: str, fps: 
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--bag", required=True, help="path to .mcap (or a bag directory)")
     ap.add_argument("--mode", default="roll_pitch", choices=list(pano.REFERENCES) + ["roll"])
     ap.add_argument("--source", default="seg", choices=["seg", "rgb"],
@@ -146,7 +147,8 @@ def main() -> None:
     ap.add_argument("--video", action="store_true", help="render an mp4 over a time range")
     ap.add_argument("--time", type=float, help="still: seconds from bag start (default: midpoint)")
     ap.add_argument("--start", type=float, help="video: start seconds from bag start (default: 0)")
-    ap.add_argument("--end", type=float, help="video: end seconds from bag start (default: bag end)")
+    ap.add_argument("--end", type=float,
+                    help="video: end seconds from bag start (default: bag end)")
     ap.add_argument("--fps", type=float, help="video: output frame rate (default: 5)")
     ap.add_argument("--stamp-offset", type=float, default=0.0, metavar="SECONDS",
                     help="subtract from image stamps before the TF orientation lookup; "
@@ -171,7 +173,8 @@ def main() -> None:
         render_video(src, start_ns, end_ns, args.mode, args.fps or 5.0,
                      args.out or "pano.mp4", args.source, stamp_offset_ns=offset_ns)
     else:
-        t_ns = (src.start_ns + src.end_ns) // 2 if args.time is None else src.start_ns + int(args.time * 1e9)
+        t_ns = ((src.start_ns + src.end_ns) // 2 if args.time is None
+                else src.start_ns + int(args.time * 1e9))
         render_still(src, t_ns, args.mode, args.out or "frame.png", args.source,
                      stamp_offset_ns=offset_ns)
 

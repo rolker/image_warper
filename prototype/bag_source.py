@@ -221,7 +221,8 @@ class BagSource:
         raise ValueError(f"unknown reference frame {reference}")
 
     # -- public: images -----------------------------------------------------
-    def images_at(self, t_ns: int, window_ns: int = 300_000_000) -> dict[str, tuple[int, np.ndarray]]:
+    def images_at(self, t_ns: int,
+                  window_ns: int = 300_000_000) -> dict[str, tuple[int, np.ndarray]]:
         """Nearest segmentation/compressed frame per camera to `t_ns`.
 
         Returns cam -> (frame_time_ns, BGR image). Searches a +/- window so a
@@ -327,6 +328,7 @@ class BagSource:
             for _schema, channel, _msg, ros_msg in self._reader(fh).iter_decoded_messages(
                 topics=list(topics), start_time=start_ns, end_time=end_ns,
             ):
-                img = cv2.imdecode(np.frombuffer(bytes(ros_msg.data), dtype=np.uint8), cv2.IMREAD_COLOR)
+                img = cv2.imdecode(np.frombuffer(bytes(ros_msg.data), dtype=np.uint8),
+                                   cv2.IMREAD_COLOR)
                 if img is not None:
                     yield _stamp_ns(ros_msg.header), topics[channel.topic], img
