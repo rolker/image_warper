@@ -28,6 +28,10 @@ import numpy as np
 import bag_source as bs
 import panorama as pano
 
+# Composited tiles older than this relative to the frame being emitted (or the
+# requested still time) are suspect — a camera stream that stalled or ended.
+STALE_NS = 1_500_000_000
+
 
 def _resolve_bag(path: str) -> str:
     import glob
@@ -60,6 +64,11 @@ def render_still(src: bs.BagSource, t_ns: int, mode: str, out: str, source: str,
         for ts, cam, img in src.iter_rgb(src.start_ns, t_ns):
             latest[cam] = (ts, img)
         images = latest
+        for cam, (ts, _img) in images.items():
+            if t_ns - ts > STALE_NS:
+                print(f"warning: {cam} nearest frame is {(t_ns - ts) / 1e9:.1f}s before "
+                      "--time (stream stalled or ended); compositing a stale tile",
+                      file=sys.stderr)
         infos = _infos(src, source, next(iter(images.values()))[1]) if images else None
     else:
         images = src.images_at(t_ns)
@@ -80,6 +89,7 @@ def render_video(src: bs.BagSource, start_ns: int, end_ns: int, mode: str, fps: 
     infos = None
     scale = canvas = writer = None
     anchor = None   # first camera seen sets the output cadence (all cameras ~5 Hz)
+    warned_stale: set[str] = set()
     n = 0
     try:
         for t_ns, cam, img in stream(start_ns, end_ns):
@@ -99,6 +109,13 @@ def render_video(src: bs.BagSource, start_ns: int, end_ns: int, mode: str, fps: 
                     sys.exit(f"could not open VideoWriter for {out}")
             # Emit one output frame per anchor-camera frame, once >=2 cameras have data.
             if cam == anchor and len(latest) >= 2:
+                for c, (ts, _img) in latest.items():
+                    if t_ns - ts > STALE_NS and c not in warned_stale:
+                        warned_stale.add(c)
+                        print(f"warning: {c} tile is {(t_ns - ts) / 1e9:.1f}s stale at "
+                              f"t={(t_ns - src.start_ns) / 1e9:.1f}s (camera stalled?); "
+                              "compositing its last frame. Warned once per camera.",
+                              file=sys.stderr)
                 pan = pano.stitch(src, dict(latest), mode=mode,
                                   scale=scale, canvas=canvas, infos=infos,
                                   stamp_offset_ns=stamp_offset_ns)
