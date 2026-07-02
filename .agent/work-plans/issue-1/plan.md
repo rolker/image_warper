@@ -53,21 +53,42 @@ Confirmed inputs in `~/data/logs/bizzy_images/*_ffmpeg_seg` (e.g.
    `cv2.PyRotationWarper("cylindrical", scale)` (same math as the C++ `detail`
    warpers). Composite the 4 warped images by feathered alpha over the cylinder canvas.
    **Validate with a single static frame first** (the issue's gate).
-5. **Roll-only stabilization** (in `panorama.py`) — extract roll from the world→`base_link`
-   orientation and fold it into each camera's rotation matrix as an in-plane correction
-   so the horizon stays level. Pitch left as an optional knob (off by default). Keep a
-   per-camera time-delay offset to handle tf-vs-image skew (the original's concern).
-6. **CLI** (`prototype/make_panorama.py`) — `--bag <path> --frame <t>` → PNG (static);
-   `--bag <path> [--start --end]` → mp4 (video, `cv2.VideoWriter` / imageio-ffmpeg).
-7. **Geometry sanity check** (`prototype/test_geometry.py`) — a light synthetic test:
-   two overlapping synthetic pinhole views of a known pattern should stitch with aligned
-   features on the cylinder. Not a full suite — see Open Questions.
+5. **Stabilization** (in `panorama.py`) — warp each camera with a TF-derived rotation
+   into a chosen stabilization reference frame. *(As shipped: four `--mode`s — `none`,
+   `roll` (roll-only, the plan's original default), `roll_pitch` (fully leveled,
+   heading-following — the shipped **default**, since the in-bag `base_link_level`
+   frame gives it for free), `north_up`.)* Time skew is handled per tile: each camera
+   is warped at its own image stamp, plus a global `--stamp-offset` (see Discovered
+   below) rather than per-camera delay sliders.
+6. **CLI** (`prototype/make_panorama.py`) — `--bag <path> --time <t>` → PNG (static);
+   `--bag <path> --video [--start --end]` → mp4 (`cv2.VideoWriter`).
+7. **Geometry sanity check** (`prototype/test_geometry.py`) — a light synthetic test.
+   *(As shipped: analytical checks — quaternion→matrix, yaw removal, and a
+   horizon-ray-constant-height invariant that pins the warper rotation convention —
+   rather than the originally sketched two-view stitch alignment.)*
+
+### Discovered during implementation
+
+- **Seam / layout**: `SEAM_YAW_DEG = 270` puts the wrap seam through the middle of the
+  aft camera, so the strip reads `[aft | port, forward, starboard | aft]` with forward
+  dead-centre (driver's view). Canvas angle for a camera at boat yaw `y` is
+  `(SEAM_YAW_DEG − 90 − y) mod 360`.
+- **Image-stamp latency bug (real data)**: `image_raw/ffmpeg` stamps trail capture by
+  ~0.6 s (≈3 frame periods @ 5 fps; encoder latency baked into
+  `EncodedFrame::getTimestamp()`), found via optical-flow/horizon analysis of the
+  stabilized output and confirmed by cross-stream correlation — filed as
+  [unh_marine_perception#41](https://github.com/rolker/unh_marine_perception/issues/41).
+  Hence per-tile stamp lookups + the `--stamp-offset` CLI knob (~0.6 for `--source rgb`;
+  the segmentation stream is capture-accurate, +4 ms).
+- **Full-res intrinsics are reconstructed, not measured**: the bag only carries 128×96
+  segmentation `CameraInfo`; `fullres_camera_info()` assumes a centred 4:3 crop of the
+  16:9 sensor then uniform resize. Verify against OAK factory calibration in Phase 2.
 
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `prototype/requirements.txt` | New: `numpy`, `opencv-python`, `av` (PyAV), `mcap`, `mcap-ros2-support`, `imageio[ffmpeg]` |
+| `prototype/requirements.txt` | New: `numpy`, `opencv-python`, `av` (PyAV), `mcap`, `mcap-ros2-support` |
 | `prototype/README.md` | New: `.venv` setup, how to run static + video modes, input-bag expectations |
 | `prototype/bag_source.py` | New: mcap reader, decoders, minimal TF lookup |
 | `prototype/panorama.py` | New: undistort + cylindrical warp + roll stabilization + composite |
