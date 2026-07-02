@@ -1,0 +1,9 @@
+# Python prototype (Phase 1)
+.venv/
+__pycache__/
+*.pyc
+
+# Prototype output artifacts (scoped: future doc images elsewhere stay trackable)
+prototype/out/
+prototype/*.mp4
+prototype/*.png
