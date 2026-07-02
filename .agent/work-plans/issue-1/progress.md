@@ -84,3 +84,21 @@ issue: 1
 Verified after fixes: test_geometry 3/3; seg + rgb (--stamp-offset 0.6) stills and a
 10 s seg video render correctly; all four new CLI/IO error paths exercised and fail
 loudly with the intended messages.
+
+## Local Review (Pre-Push)
+**Status**: complete
+**When**: 2026-07-02 18:35 -04:00
+**By**: Claude Code Agent (Claude Fable 5)
+**Verdict**: approved
+
+**Branch**: feature/issue-1 at `514d40c`
+**Mode**: pre-push
+**Depth**: Deep (reason: 969 changed lines >= 200; round-2 re-review)
+**Must-fix**: 0 | **Suggestions**: 4
+**Round**: 2 | **Ship**: recommended — all 18 round-1 findings verified fixed under cold re-derivation; new items are degradation-path polish only
+
+### Findings
+- [ ] (suggestion) anchor-camera stall silently truncates video; stale warning gated on anchor emits — `prototype/make_panorama.py:117`
+- [ ] (suggestion) image iterators use CAMERAS not available_cameras(); imagery-without-camera_info still KeyErrors — `prototype/bag_source.py:231`
+- [ ] (suggestion) validate --fps > 0 (explicit 0 silently becomes 5.0; negative reaches VideoWriter) — `prototype/make_panorama.py:173`
+- [ ] (suggestion) wrap BagSource construction so ValueError/KeyError exit cleanly like other CLI errors — `prototype/make_panorama.py:167`
